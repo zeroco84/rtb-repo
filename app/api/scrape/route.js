@@ -9,6 +9,7 @@
 import { createServiceClient } from '@/lib/supabase';
 import { scrapeAllDisputes, parseHeading } from '@/lib/rtb-scraper';
 import { requireAdmin } from '@/lib/admin-auth';
+import { processUnanalysedDisputes } from '@/lib/openai-service';
 
 export const maxDuration = 300; // 5 minutes max for edge/serverless
 export const dynamic = 'force-dynamic';
@@ -356,6 +357,17 @@ async function runScrape(supabase, jobId) {
             .eq('id', jobId);
 
         console.log(`[Scrape] Complete: ${newRecords} new, ${updatedRecords} updated, ${totalRecords} total`);
+
+        // Auto-trigger AI processing on new records
+        if (newRecords > 0) {
+            console.log('[Scrape] Starting automatic AI processing...');
+            try {
+                const aiResult = await processUnanalysedDisputes(20);
+                console.log(`[AI] Auto-process: ${aiResult.processed} analysed, ${aiResult.failed} failed`);
+            } catch (aiError) {
+                console.error('[AI] Auto-process error:', aiError.message);
+            }
+        }
     } catch (error) {
         console.error('[Scrape] Job failed:', error.message);
         await supabase

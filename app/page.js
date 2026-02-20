@@ -627,11 +627,51 @@ function DisputeModal({ dispute, onClose }) {
         )}
 
         {dispute.ai_summary && (
-          <div className="modal-field">
-            <div className="modal-field-label">AI Summary</div>
-            <div className="modal-field-value" style={{ fontSize: '13px', lineHeight: 1.5 }}>
+          <div className="glass-card-static" style={{ padding: '16px', margin: '16px 0', borderColor: 'rgba(99, 102, 241, 0.2)' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+              🤖 AI Analysis
+            </div>
+            <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '12px' }}>
               {dispute.ai_summary}
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {dispute.ai_outcome && (
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Outcome</div>
+                  <span className={`badge ${dispute.ai_outcome === 'Upheld' ? 'badge-green' : dispute.ai_outcome === 'Dismissed' ? 'badge-red' : 'badge-amber'}`}>
+                    {dispute.ai_outcome}
+                  </span>
+                </div>
+              )}
+              {dispute.ai_dispute_type && (
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Type</div>
+                  <span className="badge badge-glass">{dispute.ai_dispute_type}</span>
+                </div>
+              )}
+              {(dispute.ai_compensation_amount > 0) && (
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Compensation</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-green)' }}>
+                    €{parseFloat(dispute.ai_compensation_amount).toLocaleString()}
+                  </div>
+                </div>
+              )}
+              {(dispute.ai_cost_order > 0) && (
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Cost Order</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-amber)' }}>
+                    €{parseFloat(dispute.ai_cost_order).toLocaleString()}
+                  </div>
+                </div>
+              )}
+            </div>
+            {dispute.ai_property_address && (
+              <div style={{ marginTop: '10px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Property</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>📍 {dispute.ai_property_address}</div>
+              </div>
+            )}
           </div>
         )}
 
