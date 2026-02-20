@@ -64,8 +64,8 @@ export default function Home() {
           <div className="nav-brand">
             <div className="nav-brand-icon">⚖️</div>
             <div>
-              <div className="nav-brand-text">RTB Disputes</div>
-              <div className="nav-brand-sub">Public Database</div>
+              <div className="nav-brand-text">Act Fairly</div>
+              <div className="nav-brand-sub">RTB Dispute Database</div>
             </div>
           </div>
 
@@ -124,6 +124,42 @@ export default function Home() {
           />
         )}
       </div>
+
+      {/* Footer */}
+      <footer style={{
+        marginTop: 'auto',
+        padding: '32px 24px',
+        textAlign: 'center',
+        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+        background: 'rgba(0, 0, 0, 0.2)',
+      }}>
+        <p style={{
+          fontSize: '13px',
+          color: 'var(--text-tertiary)',
+          lineHeight: 1.7,
+          maxWidth: '640px',
+          margin: '0 auto',
+        }}>
+          Act Fairly is a free, open-source service provided by{' '}
+          <a
+            href="https://rentle.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#818cf8',
+              textDecoration: 'none',
+              fontWeight: 600,
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => e.target.style.color = '#a5b4fc'}
+            onMouseLeave={(e) => e.target.style.color = '#818cf8'}
+          >
+            rentle.ai
+          </a>
+          {' '}— the automated intelligence PMS. RTB data is just one element of our AI
+          underwrite feature, which uses a proprietary algorithm to analyse potential tenants.
+        </p>
+      </footer>
 
       {/* Toast */}
       {toast && (
