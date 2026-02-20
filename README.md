@@ -1,27 +1,16 @@
-# RTB Dispute Database
+# Act Fairly
 
-A comprehensive, searchable database of every dispute filed with the Irish Residential Tenancies Board (RTB). Built on **Next.js** + **Supabase** with an **iOS 26 Liquid Glass** design language.
+A complete, searchable database of every dispute filed with the Irish Residential Tenancies Board (RTB). Built with **Next.js** + **Supabase**.
 
 ## Features
 
-- **Full RTB Scraper** — Automatically downloads all dispute records from rtb.ie via their FacetWP API
-- **Searchable Database** — Search by name, address, DR number, TR number, date range
-- **League Table** — Identifies repeat offenders (landlords & tenants) with podium display
-- **Party Tracking** — Deduplicated party records with dispute history
-- **Daily Auto-Sync** — CRON job runs daily at 3am UTC to pull new records
-- **AI Enhancement** — (Future) AI agent scans PDFs to extract dispute values, compensation amounts, and summaries
-- **Liquid Glass UI** — Dark mode with glassmorphism, ambient gradients, and smooth animations
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 16 (App Router) |
-| Backend | Next.js API Routes |
-| Database | Supabase (PostgreSQL) |
-| Scraping | RTB FacetWP API + Cheerio |
-| Deployment | Vercel (recommended) |
-| Design | iOS 26 Liquid Glass |
+- **Complete RTB Database** — All publicly available dispute records from rtb.ie
+- **Searchable** — Search by name, address, DR number, TR number, or date range
+- **League Table** — Identifies repeat parties (landlords & tenants) across disputes
+- **Party Profiles** — Deduplicated records with full dispute history
+- **Admin Panel** — Protected admin area for managing sync and settings
+- **AI Enhancement** — (Coming soon) AI-powered PDF analysis for dispute summaries and outcomes
+- **Modern UI** — Dark mode with glassmorphism, ambient gradients, and smooth animations
 
 ## Getting Started
 
@@ -40,23 +29,13 @@ npm install
 
 1. Create a Supabase project at https://supabase.com
 2. Go to the **SQL Editor** in your Supabase dashboard
-3. Run the migration script:
-
-```bash
-# Copy the contents of supabase/schema.sql and paste into the SQL Editor
-cat supabase/schema.sql
-```
-
-4. Copy your Supabase credentials:
-   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - **Anon Key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **Service Role Key** → `SUPABASE_SERVICE_ROLE_KEY` (found under Settings > API)
+3. Run `supabase/schema.sql` — creates the core tables
+4. Run `supabase/admin-schema.sql` — creates the admin settings table
 
 ### 3. Configure Environment
 
 ```bash
 cp .env.local.example .env.local
-# Edit .env.local with your Supabase credentials
 ```
 
 **.env.local:**
@@ -64,6 +43,7 @@ cp .env.local.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+ADMIN_PASSWORD=your-admin-password
 CRON_SECRET=your-secret-for-cron-auth
 ```
 
@@ -75,59 +55,48 @@ npm run dev
 
 Visit http://localhost:3000
 
-### 5. Trigger First Sync
+### 5. Initial Data Sync
 
-Navigate to the **Data Sync** tab and click **Start Sync**. This will:
-1. Fetch a security nonce from rtb.ie
-2. Paginate through all dispute records
-3. Parse and store each record in Supabase
-4. Create deduplicated party records
-5. Build the league table
+Navigate to the **Admin** tab, log in, and click **Start Sync** to begin downloading dispute records. The sync is rate-limited to be respectful of the source.
 
-## Deployment to Vercel
+## Deployment
 
-```bash
-npx vercel
-```
+The app can be deployed to any platform that supports Next.js (Render, Vercel, Railway, etc.).
 
-Set the environment variables in your Vercel project settings. The CRON job in `vercel.json` will automatically run daily at 3am UTC.
+### Render
 
-## API Routes
+A `render.yaml` blueprint is included. Create a new Web Service, connect your repo, and add the environment variables.
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/stats` | GET | Dashboard statistics |
-| `/api/disputes` | GET | Search/list disputes (with filtering & pagination) |
-| `/api/parties` | GET | League table (search, filter by type, min disputes) |
-| `/api/parties/[id]` | GET | Party detail with dispute history |
-| `/api/scrape` | GET | Get latest scrape job status |
-| `/api/scrape` | POST | Start a new scrape job |
-| `/api/cron` | GET | CRON endpoint for daily sync |
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `ADMIN_PASSWORD` | Yes | Password for the admin panel |
+| `CRON_SECRET` | No | Secret to authenticate daily auto-sync |
 
 ## Database Schema
 
 - **disputes** — Core dispute records with party info, dates, PDF links
 - **parties** — Deduplicated people/entities with dispute counts
 - **dispute_parties** — Join table linking parties to disputes
-- **scrape_jobs** — Tracks scraping progress and history
+- **scrape_jobs** — Tracks sync progress and history
+- **admin_settings** — Configuration store for API keys and settings
 
-## How the Scraper Works
-
-The scraper is ported from the Ruby `RtbSearchService` in rentle-1. It:
-
-1. Fetches `rtb.ie/disputes/dispute-outcomes-and-orders/adjudication-and-tribunal-orders`
-2. Extracts a FacetWP nonce from the page HTML
-3. POSTs to `/wp-json/facetwp/v1/refresh` with pagination parameters
-4. Parses the returned HTML using Cheerio (like Nokogiri for Node.js)
-5. Extracts: heading, DR number, TR number, date, PDF links
-6. Parses the heading to identify applicant/respondent names and roles
-7. Upserts into Supabase with deduplication on DR number
-
-## Future Enhancements
+## Roadmap
 
 - [ ] AI PDF analysis (extract dispute values, compensation, summaries)
-- [ ] Date of birth tracking (if available in records)
 - [ ] Property address extraction from PDFs
 - [ ] Email alerts for new disputes involving watched parties
 - [ ] Export to CSV/Excel
-- [ ] Dispute type categorization via AI
+- [ ] Dispute type categorisation via AI
+
+## License
+
+This project collects and presents publicly available data from the RTB as permitted under Irish law. All dispute records are published by the RTB in accordance with the Residential Tenancies Acts.
+
+---
+
+*A free, open-source service by [rentle.ai](https://rentle.ai)*

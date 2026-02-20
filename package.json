@@ -16,10 +16,8 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "pg": "^8.18.0",
-    "tailwindcss": "^4"
+    "pg": "^8.18.0"
   }
 }
