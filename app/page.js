@@ -1229,6 +1229,12 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
           🔄 Data Sync
         </button>
         <button
+          className={`filter-chip ${adminTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setAdminTab('ai')}
+        >
+          🤖 AI Processing
+        </button>
+        <button
           className={`filter-chip ${adminTab === 'settings' ? 'active' : ''}`}
           onClick={() => setAdminTab('settings')}
         >
@@ -1239,9 +1245,200 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
       {adminTab === 'sync' && (
         <ScraperView showToast={showToast} onComplete={onSyncComplete} />
       )}
+      {adminTab === 'ai' && (
+        <AIProcessingView showToast={showToast} />
+      )}
       {adminTab === 'settings' && (
         <SettingsView showToast={showToast} />
       )}
+    </>
+  );
+}
+
+// ============================================
+// AI PROCESSING VIEW
+// ============================================
+function AIProcessingView({ showToast }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [autoEnabled, setAutoEnabled] = useState(true);
+  const [togglingAuto, setTogglingAuto] = useState(false);
+
+  useEffect(() => {
+    fetchStatus();
+    fetchAutoSetting();
+  }, []);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch('/api/ai/process');
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch AI status:', err);
+    }
+    setLoading(false);
+  };
+
+  const fetchAutoSetting = async () => {
+    try {
+      const res = await fetch('/api/admin/settings');
+      if (res.ok) {
+        const data = await res.json();
+        const setting = data.settings?.find(s => s.key === 'ai_auto_process');
+        setAutoEnabled(setting ? setting.value !== 'false' : true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch auto setting:', err);
+    }
+  };
+
+  const toggleAuto = async () => {
+    setTogglingAuto(true);
+    const newValue = !autoEnabled;
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'ai_auto_process', value: newValue ? 'true' : 'false' }),
+      });
+
+      if (!res.ok) {
+        // Setting doesn't exist yet — create it
+        await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: 'ai_auto_process',
+            value: newValue ? 'true' : 'false',
+            description: 'Automatically run AI analysis after data sync',
+            is_secret: false,
+          }),
+        });
+      }
+
+      setAutoEnabled(newValue);
+      showToast(`AI auto-processing ${newValue ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err) {
+      showToast('Failed to update setting', 'error');
+    }
+    setTogglingAuto(false);
+  };
+
+  const runAI = async () => {
+    setRunning(true);
+    showToast('Starting AI processing...', 'info');
+    try {
+      const res = await fetch('/api/ai/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 20 }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showToast(data.message, 'success');
+        fetchStatus();
+      } else {
+        showToast(data.error || 'AI processing failed', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to run AI processing', 'error');
+    }
+    setRunning(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <div className="loading-text">Loading AI status...</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Status Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: 'var(--spacing-md)' }}>
+        <div className="glass-card stat-card">
+          <div className="stat-label">Processed</div>
+          <div className="stat-value green">{status?.processed || 0}</div>
+          <div className="stat-change">AI analysed</div>
+        </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">Pending</div>
+          <div className="stat-value blue">{status?.unprocessed || 0}</div>
+          <div className="stat-change">Awaiting analysis</div>
+        </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">Failed</div>
+          <div className="stat-value" style={{ color: '#f87171' }}>{status?.failed || 0}</div>
+          <div className="stat-change">Errors</div>
+        </div>
+      </div>
+
+      {/* Auto-process toggle */}
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)', marginBottom: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
+              Auto-process after sync
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+              Automatically run AI analysis on new disputes after each data sync completes
+            </div>
+          </div>
+          <button
+            onClick={toggleAuto}
+            disabled={togglingAuto}
+            style={{
+              padding: '8px 20px', fontSize: '13px', fontWeight: 600, borderRadius: '10px', cursor: 'pointer',
+              border: '1px solid',
+              background: autoEnabled ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              borderColor: autoEnabled ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+              color: autoEnabled ? '#4ade80' : '#f87171',
+              minWidth: '80px',
+            }}
+          >
+            {togglingAuto ? '...' : autoEnabled ? '✓ ON' : '✗ OFF'}
+          </button>
+        </div>
+      </div>
+
+      {/* Manual run */}
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
+              {running ? 'Processing disputes...' : 'Run AI Analysis'}
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+              {running
+                ? 'GPT-4o-mini is analysing dispute PDFs. This may take a few minutes.'
+                : 'Manually process the next batch of unanalysed disputes (20 at a time)'}
+            </div>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={runAI}
+            disabled={running || (status?.unprocessed === 0)}
+            id="run-ai-btn"
+          >
+            {running ? (
+              <>
+                <div className="spinner spinner-sm" style={{ borderTopColor: 'white' }}></div>
+                Processing...
+              </>
+            ) : (
+              <>🤖 Run AI</>
+            )}
+          </button>
+        </div>
+      </div>
     </>
   );
 }

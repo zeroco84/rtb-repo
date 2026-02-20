@@ -358,14 +358,26 @@ async function runScrape(supabase, jobId) {
 
         console.log(`[Scrape] Complete: ${newRecords} new, ${updatedRecords} updated, ${totalRecords} total`);
 
-        // Auto-trigger AI processing on new records
+        // Auto-trigger AI processing on new records (if enabled)
         if (newRecords > 0) {
-            console.log('[Scrape] Starting automatic AI processing...');
-            try {
-                const aiResult = await processUnanalysedDisputes(20);
-                console.log(`[AI] Auto-process: ${aiResult.processed} analysed, ${aiResult.failed} failed`);
-            } catch (aiError) {
-                console.error('[AI] Auto-process error:', aiError.message);
+            const { data: aiSetting } = await supabase
+                .from('admin_settings')
+                .select('value')
+                .eq('key', 'ai_auto_process')
+                .single();
+
+            const autoProcess = aiSetting?.value !== 'false'; // default: enabled
+
+            if (autoProcess) {
+                console.log('[Scrape] Starting automatic AI processing...');
+                try {
+                    const aiResult = await processUnanalysedDisputes(20);
+                    console.log(`[AI] Auto-process: ${aiResult.processed} analysed, ${aiResult.failed} failed`);
+                } catch (aiError) {
+                    console.error('[AI] Auto-process error:', aiError.message);
+                }
+            } else {
+                console.log('[Scrape] AI auto-processing is disabled');
             }
         }
     } catch (error) {
