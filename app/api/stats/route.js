@@ -31,7 +31,7 @@ export async function GET() {
         const { count: aiProcessed } = await supabase
             .from('disputes')
             .select('*', { count: 'exact', head: true })
-            .eq('ai_processed', true);
+            .not('ai_processed_at', 'is', null);
 
         // Top 5 repeat offenders - landlords
         const { data: topLandlords } = await supabase
