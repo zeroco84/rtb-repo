@@ -694,7 +694,7 @@ function DisputeModal({ dispute, onClose }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="modal-grid-2">
           {dispute.applicant_name && (
             <div className="modal-field">
               <div className="modal-field-label">Applicant ({dispute.applicant_role || 'Unknown'})</div>
@@ -1193,7 +1193,7 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+        <div className="modal-grid-3">
           <div className="glass-card stat-card" style={{ padding: '12px' }}>
             <div className="stat-label" style={{ fontSize: '10px' }}>Total</div>
             <div className="stat-value blue" style={{ fontSize: '22px' }}>{party.total_disputes}</div>
@@ -1210,7 +1210,7 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
 
         {/* Net Awards breakdown */}
         {(parseFloat(party.net_awards_for || 0) > 0 || parseFloat(party.net_awards_against || 0) > 0) && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <div className="modal-grid-3">
             <div className="glass-card stat-card" style={{ padding: '12px' }}>
               <div className="stat-label" style={{ fontSize: '10px' }}>💰 Awarded For</div>
               <div className="stat-value green" style={{ fontSize: '18px' }}>
