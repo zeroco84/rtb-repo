@@ -706,6 +706,21 @@ function DisputeModal({ dispute, onClose }) {
           </div>
         )}
 
+        {dispute.ai_summary && (
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--text-tertiary)',
+            lineHeight: 1.5,
+            padding: '8px 12px',
+            background: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: '12px',
+            opacity: 0.8,
+          }}>
+            ⚠️ This summary is AI-generated and may contain errors. Please verify all amounts by referring to the linked PDF documents below.
+          </div>
+        )}
+
         {(dispute.dispute_value || dispute.awarded_amount) && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {dispute.dispute_value && (
