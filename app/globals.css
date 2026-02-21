@@ -1106,43 +1106,212 @@ body::before {
 }
 
 /* ====================================
+   Top Parties Grid
+   ==================================== */
+.top-parties-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+/* ====================================
    Responsive
    ==================================== */
 @media (max-width: 768px) {
+
+  .top-parties-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Nav: horizontal scroll, compact */
   .nav-inner {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .nav-brand {
+    gap: var(--spacing-sm);
+  }
+
+  .nav-brand-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-brand-name {
+    font-size: var(--font-size-md);
+  }
+
+  .nav-brand-subtitle {
+    font-size: 9px;
   }
 
   .nav-tabs {
     width: 100%;
-    overflow-x: auto;
-    justify-content: flex-start;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .nav-tab {
+    font-size: 12px;
+    padding: 6px 10px;
+    gap: 4px;
+  }
+
+  /* Page container */
+  .page-container {
+    padding: var(--spacing-md);
   }
 
   .page-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .page-subtitle {
+    font-size: var(--font-size-xs);
+  }
+
+  /* Stats grid: 2 columns, tighter */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+  }
+
+  .stat-card {
+    padding: var(--spacing-md);
+  }
+
+  .stat-value {
     font-size: var(--font-size-2xl);
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .stat-label {
+    font-size: 10px;
   }
 
+  /* League podium: vertical, gold FIRST */
   .league-podium {
     flex-direction: column;
     align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) 0;
+    margin-bottom: var(--spacing-lg);
   }
+
+  .league-podium .podium-item:nth-child(1) {
+    order: 2;
+  }
+
+  /* Silver → 2nd */
+  .league-podium .podium-item:nth-child(2) {
+    order: 1;
+  }
+
+  /* Gold → 1st */
+  .league-podium .podium-item:nth-child(3) {
+    order: 3;
+  }
+
+  /* Bronze → 3rd */
 
   .podium-bar {
     display: none;
   }
 
-  .modal-content {
-    max-height: 90vh;
+  .podium-item {
+    flex-direction: row;
+    gap: var(--spacing-md);
+    width: 100%;
+    padding: var(--spacing-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
   }
 
+  .podium-rank {
+    font-size: var(--font-size-2xl);
+    margin-bottom: 0;
+    min-width: 32px;
+  }
+
+  .podium-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+    margin-bottom: 0;
+  }
+
+  .podium-name {
+    max-width: none;
+    white-space: normal;
+    font-size: var(--font-size-sm);
+  }
+
+  .podium-disputes {
+    font-size: 11px;
+  }
+
+  .podium-awards {
+    font-size: 12px !important;
+  }
+
+  /* Modal — full width on mobile */
+  .modal-content {
+    max-width: 100%;
+    max-height: 92vh;
+    margin: 0 var(--spacing-sm);
+    padding: var(--spacing-lg);
+  }
+
+  .modal-overlay {
+    padding: var(--spacing-sm);
+  }
+
+  /* Search filters */
   .search-filters {
     flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  /* Tables: horizontal scroll, hide less critical columns */
+  .data-table {
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 6px;
+  }
+
+  /* Hide Type and AI columns in disputes table on mobile */
+  .data-table th.col-type,
+  .data-table td.col-type,
+  .data-table th.col-ai,
+  .data-table td.col-ai {
+    display: none;
+  }
+
+  /* Hide As Applicant and As Respondent in league table on mobile */
+  .data-table th.col-applicant,
+  .data-table td.col-applicant,
+  .data-table th.col-respondent,
+  .data-table td.col-respondent {
+    display: none;
+  }
+
+  /* Pagination */
+  .pagination {
+    gap: var(--spacing-xs);
+  }
+
+  .pagination-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .pagination-info {
+    font-size: 11px;
   }
 }
 

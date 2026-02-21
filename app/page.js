@@ -235,7 +235,7 @@ function DashboardView({ stats, onRefresh }) {
       </div>
 
       {/* Two column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
+      <div className="top-parties-grid">
         {/* Top Landlords */}
         <div className="glass-card-static">
           <div className="section-header">
@@ -480,10 +480,12 @@ function DisputesView({ showToast }) {
                 <th className={sortBy === 'dr_no' ? 'active' : ''} onClick={() => handleSort('dr_no')}>
                   DR No. <SortIcon field="dr_no" />
                 </th>
-                <th>Type</th>
-                <th>Award</th>
+                <th className="col-type">Type</th>
+                <th className={sortBy === 'ai_compensation_amount' ? 'active' : ''} onClick={() => handleSort('ai_compensation_amount')}>
+                  Award <SortIcon field="ai_compensation_amount" />
+                </th>
                 <th>PDFs</th>
-                <th>AI</th>
+                <th className="col-ai">AI</th>
               </tr>
             </thead>
             <tbody>
@@ -512,7 +514,7 @@ function DisputesView({ showToast }) {
                     </div>
                   </td>
                   <td className="mono">{d.dr_no || '—'}</td>
-                  <td className="muted">{d.dispute_type || '—'}</td>
+                  <td className="muted col-type">{d.dispute_type || '—'}</td>
                   <td>
                     {d.ai_compensation_amount > 0 ? (
                       <span style={{ color: 'var(--accent-red)', fontWeight: 700, fontSize: '13px' }}>
@@ -529,7 +531,7 @@ function DisputesView({ showToast }) {
                       <span className="badge badge-glass">📄 {d.pdf_urls.length}</span>
                     )}
                   </td>
-                  <td>
+                  <td className="col-ai">
                     {d.ai_processed ? (
                       <span className="badge badge-purple">✨</span>
                     ) : (
@@ -956,8 +958,8 @@ function LeagueTableView({ showToast }) {
                 <th>Type</th>
                 <th>Total Disputes</th>
                 <th>Net Awards</th>
-                <th>As Applicant</th>
-                <th>As Respondent</th>
+                <th className="col-applicant">As Applicant</th>
+                <th className="col-respondent">As Respondent</th>
               </tr>
             </thead>
             <tbody>
@@ -1013,8 +1015,8 @@ function LeagueTableView({ showToast }) {
                         <span className="muted">—</span>
                       )}
                     </td>
-                    <td className="muted">{p.total_as_applicant}</td>
-                    <td className="muted">{p.total_as_respondent}</td>
+                    <td className="muted col-applicant">{p.total_as_applicant}</td>
+                    <td className="muted col-respondent">{p.total_as_respondent}</td>
                   </tr>
                 );
               })}
