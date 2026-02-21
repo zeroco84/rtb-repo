@@ -46,4 +46,4 @@ BEGIN
   
   UPDATE parties SET net_awards = net_awards_against - net_awards_for;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

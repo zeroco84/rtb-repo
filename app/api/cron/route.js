@@ -195,6 +195,13 @@ export async function GET(request) {
             completed_at: new Date().toISOString(),
         }).eq('id', job.id);
 
+        // Recompute net awards from AI data
+        try {
+            await supabase.rpc('recompute_party_awards');
+        } catch (e) {
+            console.warn('[CRON] recompute_party_awards failed:', e.message);
+        }
+
         return Response.json({
             success: true,
             total_records: totalRecords,
