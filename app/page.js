@@ -159,6 +159,23 @@ export default function Home() {
           {' '}— the automated intelligence PMS. RTB data is just one element of our AI
           underwrite feature, which uses a proprietary algorithm to analyse potential tenants.
         </p>
+        <p style={{
+          fontSize: '11px',
+          color: 'var(--text-tertiary)',
+          lineHeight: 1.7,
+          maxWidth: '640px',
+          margin: '12px auto 0',
+          opacity: 0.7,
+        }}>
+          <strong>Disclaimer:</strong> This application displays publicly available information
+          published by the Residential Tenancies Board (RTB) at{' '}
+          <a href="https://www.rtb.ie" target="_blank" rel="noopener noreferrer"
+            style={{ color: 'var(--text-tertiary)', textDecoration: 'underline' }}>rtb.ie</a>.
+          No private or personal information is collected or displayed beyond what is already
+          in the public domain. All data is parsed directly from the RTB website; any
+          discrepancies should be reported to the RTB directly. This service is not affiliated
+          with or endorsed by the RTB.
+        </p>
       </footer>
 
       {/* Toast */}
