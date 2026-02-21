@@ -11,6 +11,20 @@ export default function Home() {
   const [toast, setToast] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminChecked, setAdminChecked] = useState(false);
+  const [navigateToPartyId, setNavigateToPartyId] = useState(null);
+  const [navigateToDisputeDrNo, setNavigateToDisputeDrNo] = useState(null);
+
+  // Navigate to a party's profile (from dashboard)
+  const openPartyProfile = (partyId) => {
+    setNavigateToPartyId(partyId);
+    setActiveTab('league');
+  };
+
+  // Navigate to a dispute detail (from party modal)
+  const openDisputeByDrNo = (drNo) => {
+    setNavigateToDisputeDrNo(drNo);
+    setActiveTab('disputes');
+  };
 
   // Load stats and check admin status on mount
   useEffect(() => {
@@ -105,13 +119,13 @@ export default function Home() {
       {/* Content */}
       <div className="page-container">
         {activeTab === 'dashboard' && (
-          <DashboardView stats={stats} onRefresh={fetchStats} />
+          <DashboardView stats={stats} onRefresh={fetchStats} onPartyClick={openPartyProfile} />
         )}
         {activeTab === 'disputes' && (
-          <DisputesView showToast={showToast} />
+          <DisputesView showToast={showToast} navigateToDrNo={navigateToDisputeDrNo} onNavigated={() => setNavigateToDisputeDrNo(null)} />
         )}
         {activeTab === 'league' && (
-          <LeagueTableView showToast={showToast} />
+          <LeagueTableView showToast={showToast} navigateToPartyId={navigateToPartyId} onNavigated={() => setNavigateToPartyId(null)} onDisputeClick={openDisputeByDrNo} />
         )}
         {activeTab === 'admin' && (
           <AdminGate
@@ -191,7 +205,7 @@ export default function Home() {
 // ============================================
 // DASHBOARD VIEW
 // ============================================
-function DashboardView({ stats, onRefresh }) {
+function DashboardView({ stats, onRefresh, onPartyClick }) {
   if (!stats) {
     return (
       <div className="loading-container">
@@ -247,7 +261,7 @@ function DashboardView({ stats, onRefresh }) {
           </div>
           {stats.top_landlords && stats.top_landlords.length > 0 ? (
             stats.top_landlords.map((p, i) => (
-              <div key={p.id} className="party-dispute-row">
+              <div key={p.id} className="party-dispute-row" onClick={() => onPartyClick(p.id)} style={{ cursor: 'pointer' }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%',
                   background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
@@ -282,7 +296,7 @@ function DashboardView({ stats, onRefresh }) {
           </div>
           {stats.top_tenants && stats.top_tenants.length > 0 ? (
             stats.top_tenants.map((p, i) => (
-              <div key={p.id} className="party-dispute-row">
+              <div key={p.id} className="party-dispute-row" onClick={() => onPartyClick(p.id)} style={{ cursor: 'pointer' }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%',
                   background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)',
@@ -332,7 +346,7 @@ function DashboardView({ stats, onRefresh }) {
 // ============================================
 // DISPUTES VIEW
 // ============================================
-function DisputesView({ showToast }) {
+function DisputesView({ showToast, navigateToDrNo, onNavigated }) {
   const [disputes, setDisputes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -375,6 +389,15 @@ function DisputesView({ showToast }) {
     fetchDisputes();
   }, [fetchDisputes]);
 
+  // Handle navigation from party detail modal
+  useEffect(() => {
+    if (navigateToDrNo) {
+      setSearch(navigateToDrNo);
+      setPage(1);
+      onNavigated();
+    }
+  }, [navigateToDrNo]);
+
   const handleSearch = (value) => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
@@ -415,6 +438,8 @@ function DisputesView({ showToast }) {
             type="text"
             className="search-input"
             placeholder="Search by name, address, DR number, TR number..."
+            defaultValue={search}
+            key={search}
             onChange={(e) => handleSearch(e.target.value)}
             id="dispute-search-input"
           />
@@ -520,8 +545,10 @@ function DisputesView({ showToast }) {
                       <span style={{ color: 'var(--accent-red)', fontWeight: 700, fontSize: '13px' }}>
                         €{parseFloat(d.ai_compensation_amount).toLocaleString()}
                       </span>
-                    ) : d.ai_processed_at ? (
+                    ) : d.ai_processed_at && d.ai_compensation_amount === 0 ? (
                       <span className="muted" style={{ fontSize: '11px' }}>€0</span>
+                    ) : d.ai_processed_at && d.ai_compensation_amount === null ? (
+                      <span className="badge badge-amber" style={{ fontSize: '9px' }}>Refer to Order</span>
                     ) : (
                       <span style={{ color: 'var(--text-tertiary)', fontSize: '11px' }}>—</span>
                     )}
@@ -680,14 +707,24 @@ function DisputeModal({ dispute, onClose }) {
                   <span className="badge badge-glass">{dispute.ai_dispute_type}</span>
                 </div>
               )}
-              {(dispute.ai_compensation_amount > 0) && (
+              {dispute.ai_compensation_amount > 0 ? (
                 <div>
                   <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Compensation</div>
                   <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-green)' }}>
                     €{parseFloat(dispute.ai_compensation_amount).toLocaleString()}
                   </div>
                 </div>
-              )}
+              ) : dispute.ai_compensation_amount === null && dispute.ai_processed_at ? (
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Compensation</div>
+                  <span className="badge badge-amber">Refer to Order</span>
+                </div>
+              ) : dispute.ai_compensation_amount === 0 ? (
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Compensation</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-tertiary)' }}>€0</div>
+                </div>
+              ) : null}
               {(dispute.ai_cost_order > 0) && (
                 <div>
                   <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Cost Order</div>
@@ -762,7 +799,7 @@ function DisputeModal({ dispute, onClose }) {
 // ============================================
 // LEAGUE TABLE VIEW
 // ============================================
-function LeagueTableView({ showToast }) {
+function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeClick }) {
   const [parties, setParties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -803,6 +840,31 @@ function LeagueTableView({ showToast }) {
   useEffect(() => {
     fetchParties();
   }, [fetchParties]);
+
+  // Handle navigation from dashboard top 5
+  useEffect(() => {
+    if (navigateToPartyId && parties.length > 0) {
+      const party = parties.find(p => p.id === navigateToPartyId);
+      if (party) {
+        openPartyDetail(party);
+      } else {
+        // Party not on current page — fetch directly
+        (async () => {
+          try {
+            const res = await fetch(`/api/parties/${navigateToPartyId}`);
+            const data = await res.json();
+            if (data.party) {
+              setSelectedParty(data.party);
+              setPartyDetail(data);
+            }
+          } catch (err) {
+            showToast('Failed to load party', 'error');
+          }
+        })();
+      }
+      onNavigated();
+    }
+  }, [navigateToPartyId, parties]);
 
   const handleSearch = (value) => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -1057,6 +1119,11 @@ function LeagueTableView({ showToast }) {
           party={selectedParty}
           detail={partyDetail}
           onClose={() => { setSelectedParty(null); setPartyDetail(null); }}
+          onDisputeClick={(drNo) => {
+            setSelectedParty(null);
+            setPartyDetail(null);
+            onDisputeClick(drNo);
+          }}
         />
       )}
     </>
@@ -1066,7 +1133,7 @@ function LeagueTableView({ showToast }) {
 // ============================================
 // PARTY DETAIL MODAL
 // ============================================
-function PartyDetailModal({ party, detail, onClose }) {
+function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="glass-card-static modal-content" onClick={e => e.stopPropagation()}>
@@ -1136,7 +1203,7 @@ function PartyDetailModal({ party, detail, onClose }) {
         ) : detail.disputes && detail.disputes.length > 0 ? (
           <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
             {detail.disputes.map((d, i) => (
-              <div key={i} className="party-dispute-row">
+              <div key={i} className="party-dispute-row" style={{ cursor: 'pointer' }} onClick={() => d.dr_no && onDisputeClick(d.dr_no)}>
                 <div className="party-dispute-date">
                   {d.dispute_date ? new Date(d.dispute_date).toLocaleDateString('en-IE') : '—'}
                 </div>
