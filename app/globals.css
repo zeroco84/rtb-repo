@@ -11,7 +11,7 @@
   --color-bg-primary: #0a0a0f;
   --color-bg-secondary: #111118;
   --color-bg-tertiary: #1a1a24;
-  
+
   /* Glass effects */
   --glass-bg: rgba(255, 255, 255, 0.04);
   --glass-bg-hover: rgba(255, 255, 255, 0.07);
@@ -22,7 +22,7 @@
   --glass-shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.4);
   --glass-blur: 20px;
   --glass-blur-heavy: 40px;
-  
+
   /* Accent colors - Vibrant spectrum */
   --accent-blue: #3b82f6;
   --accent-blue-glow: rgba(59, 130, 246, 0.3);
@@ -37,13 +37,13 @@
   --accent-red-glow: rgba(239, 68, 68, 0.3);
   --accent-purple: #a855f7;
   --accent-purple-glow: rgba(168, 85, 247, 0.3);
-  
+
   /* Text */
   --text-primary: rgba(255, 255, 255, 0.92);
   --text-secondary: rgba(255, 255, 255, 0.55);
   --text-tertiary: rgba(255, 255, 255, 0.35);
   --text-accent: var(--accent-blue);
-  
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -52,14 +52,14 @@
   --spacing-xl: 32px;
   --spacing-2xl: 48px;
   --spacing-3xl: 64px;
-  
+
   /* Radius - Rounded as per iOS 26 */
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-xl: 28px;
   --radius-pill: 9999px;
-  
+
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
   --font-size-xs: 11px;
@@ -70,7 +70,7 @@
   --font-size-2xl: 28px;
   --font-size-3xl: 34px;
   --font-size-4xl: 48px;
-  
+
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-default: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -79,7 +79,9 @@
 }
 
 /* Reset & Base */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -139,7 +141,7 @@ body::before {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   pointer-events: none;
 }
 
@@ -168,7 +170,7 @@ body::before {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   pointer-events: none;
 }
 
@@ -331,11 +333,25 @@ body::before {
   letter-spacing: -0.5px;
 }
 
-.stat-value.blue { color: var(--accent-blue); }
-.stat-value.green { color: var(--accent-green); }
-.stat-value.amber { color: var(--accent-amber); }
-.stat-value.purple { color: var(--accent-purple); }
-.stat-value.red { color: var(--accent-red); }
+.stat-value.blue {
+  color: var(--accent-blue);
+}
+
+.stat-value.green {
+  color: var(--accent-green);
+}
+
+.stat-value.amber {
+  color: var(--accent-amber);
+}
+
+.stat-value.purple {
+  color: var(--accent-purple);
+}
+
+.stat-value.red {
+  color: var(--accent-red);
+}
 
 .stat-change {
   font-size: var(--font-size-xs);
@@ -801,6 +817,14 @@ body::before {
   margin-top: 2px;
 }
 
+.podium-awards {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: #f87171;
+  margin-top: 4px;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
 .podium-bar {
   width: 80px;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
@@ -1022,12 +1046,19 @@ body::before {
    Animations
    ==================================== */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
@@ -1035,6 +1066,7 @@ body::before {
     opacity: 0;
     transform: translateY(20px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1042,13 +1074,25 @@ body::before {
 }
 
 @keyframes shimmer {
-  0% { background-position: -200px 0; }
-  100% { background-position: 200px 0; }
+  0% {
+    background-position: -200px 0;
+  }
+
+  100% {
+    background-position: 200px 0;
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px var(--accent-blue-glow); }
-  50% { box-shadow: 0 0 20px var(--accent-blue-glow); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 8px var(--accent-blue-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 20px var(--accent-blue-glow);
+  }
 }
 
 .skeleton {

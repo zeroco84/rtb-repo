@@ -464,6 +464,7 @@ function DisputesView({ showToast }) {
                   DR No. <SortIcon field="dr_no" />
                 </th>
                 <th>Type</th>
+                <th>Award</th>
                 <th>PDFs</th>
                 <th>AI</th>
               </tr>
@@ -495,6 +496,17 @@ function DisputesView({ showToast }) {
                   </td>
                   <td className="mono">{d.dr_no || '—'}</td>
                   <td className="muted">{d.dispute_type || '—'}</td>
+                  <td>
+                    {d.ai_compensation_amount > 0 ? (
+                      <span style={{ color: 'var(--accent-red)', fontWeight: 700, fontSize: '13px' }}>
+                        €{parseFloat(d.ai_compensation_amount).toLocaleString()}
+                      </span>
+                    ) : d.ai_processed_at ? (
+                      <span className="muted" style={{ fontSize: '11px' }}>€0</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-tertiary)', fontSize: '11px' }}>—</span>
+                    )}
+                  </td>
                   <td>
                     {d.pdf_urls && d.pdf_urls.length > 0 && (
                       <span className="badge badge-glass">📄 {d.pdf_urls.length}</span>
@@ -802,6 +814,11 @@ function LeagueTableView({ showToast }) {
             <div className="podium-disputes">
               {podiumParties[1].total_disputes} disputes
             </div>
+            {parseFloat(podiumParties[1].net_awards || 0) !== 0 && (
+              <div className="podium-awards" style={{ color: parseFloat(podiumParties[1].net_awards) > 0 ? '#f87171' : '#34d399' }}>
+                {parseFloat(podiumParties[1].net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(podiumParties[1].net_awards)).toLocaleString()}
+              </div>
+            )}
             <div className="podium-bar silver"></div>
           </div>
 
@@ -815,6 +832,11 @@ function LeagueTableView({ showToast }) {
             <div className="podium-disputes">
               {podiumParties[0].total_disputes} disputes
             </div>
+            {parseFloat(podiumParties[0].net_awards || 0) !== 0 && (
+              <div className="podium-awards" style={{ color: parseFloat(podiumParties[0].net_awards) > 0 ? '#f87171' : '#34d399' }}>
+                {parseFloat(podiumParties[0].net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(podiumParties[0].net_awards)).toLocaleString()}
+              </div>
+            )}
             <div className="podium-bar gold"></div>
           </div>
 
@@ -828,6 +850,11 @@ function LeagueTableView({ showToast }) {
             <div className="podium-disputes">
               {podiumParties[2].total_disputes} disputes
             </div>
+            {parseFloat(podiumParties[2].net_awards || 0) !== 0 && (
+              <div className="podium-awards" style={{ color: parseFloat(podiumParties[2].net_awards) > 0 ? '#f87171' : '#34d399' }}>
+                {parseFloat(podiumParties[2].net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(podiumParties[2].net_awards)).toLocaleString()}
+              </div>
+            )}
             <div className="podium-bar bronze"></div>
           </div>
         </div>
@@ -879,6 +906,15 @@ function LeagueTableView({ showToast }) {
         </div>
       </div>
 
+      {/* Explainer */}
+      <p style={{
+        fontSize: '12px', color: 'var(--text-tertiary)', margin: '0 0 12px 4px',
+        lineHeight: 1.5, maxWidth: '700px'
+      }}>
+        💡 <strong style={{ color: 'var(--text-secondary)' }}>Net Awards</strong> = total compensation awarded <em>against</em> a party minus total awarded <em>for</em> them.
+        Positive (red) means they owe money; negative (green) means they received money. Only AI-analysed disputes are included.
+      </p>
+
       {/* Table */}
       <div className="glass-card-static table-container">
         {loading ? (
@@ -902,6 +938,7 @@ function LeagueTableView({ showToast }) {
                 <th>Name</th>
                 <th>Type</th>
                 <th>Total Disputes</th>
+                <th>Net Awards</th>
                 <th>As Applicant</th>
                 <th>As Respondent</th>
               </tr>
@@ -946,6 +983,18 @@ function LeagueTableView({ showToast }) {
                       }}>
                         {p.total_disputes}
                       </span>
+                    </td>
+                    <td>
+                      {parseFloat(p.net_awards || 0) !== 0 ? (
+                        <span style={{
+                          color: parseFloat(p.net_awards) > 0 ? 'var(--accent-red)' : 'var(--accent-green)',
+                          fontWeight: 700
+                        }}>
+                          {parseFloat(p.net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(p.net_awards)).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
                     </td>
                     <td className="muted">{p.total_as_applicant}</td>
                     <td className="muted">{p.total_as_respondent}</td>
@@ -1018,6 +1067,30 @@ function PartyDetailModal({ party, detail, onClose }) {
             <div className="stat-value amber" style={{ fontSize: '22px' }}>{party.total_as_respondent}</div>
           </div>
         </div>
+
+        {/* Net Awards breakdown */}
+        {(parseFloat(party.net_awards_for || 0) > 0 || parseFloat(party.net_awards_against || 0) > 0) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+            <div className="glass-card stat-card" style={{ padding: '12px' }}>
+              <div className="stat-label" style={{ fontSize: '10px' }}>💰 Awarded For</div>
+              <div className="stat-value green" style={{ fontSize: '18px' }}>
+                €{parseFloat(party.net_awards_for || 0).toLocaleString()}
+              </div>
+            </div>
+            <div className="glass-card stat-card" style={{ padding: '12px' }}>
+              <div className="stat-label" style={{ fontSize: '10px' }}>⚠️ Awarded Against</div>
+              <div className="stat-value" style={{ fontSize: '18px', color: 'var(--accent-red)' }}>
+                €{parseFloat(party.net_awards_against || 0).toLocaleString()}
+              </div>
+            </div>
+            <div className="glass-card stat-card" style={{ padding: '12px' }}>
+              <div className="stat-label" style={{ fontSize: '10px' }}>📊 Net Awards</div>
+              <div className="stat-value" style={{ fontSize: '18px', color: parseFloat(party.net_awards || 0) > 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>
+                €{parseFloat(party.net_awards || 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="modal-field-label" style={{ marginBottom: '12px' }}>Dispute History</div>
 
