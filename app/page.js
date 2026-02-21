@@ -1693,6 +1693,7 @@ function SettingsView({ showToast }) {
   };
 
   const settingIcons = {
+    gemini_api_key: '✨',
     openai_api_key: '🤖',
     openai_model: '🧠',
     scrape_delay_ms: '⏱️',
@@ -1927,7 +1928,11 @@ function SettingsView({ showToast }) {
           <ul style={{ listStyle: 'none', marginTop: '8px' }}>
             <li style={{ marginBottom: '6px' }}>
               <span style={{ marginRight: '8px' }}>🔑</span>
-              <strong>openai_api_key</strong> — Required for AI-powered dispute analysis and PDF summarization
+              <strong>gemini_api_key</strong> — <strong>Primary AI</strong> for dispute analysis (Gemini 2.0 Flash — best OCR, cheapest)
+            </li>
+            <li style={{ marginBottom: '6px' }}>
+              <span style={{ marginRight: '8px' }}>🔑</span>
+              <strong>openai_api_key</strong> — Secondary reviewer for high-value awards (GPT-4o cross-check)
             </li>
             <li style={{ marginBottom: '6px' }}>
               <span style={{ marginRight: '8px' }}>🧠</span>
