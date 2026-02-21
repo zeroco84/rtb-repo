@@ -69,21 +69,44 @@ async function updatePartyCounts(supabase, partyId) {
 
     const { data: links } = await supabase
         .from('dispute_parties')
-        .select('role')
+        .select('role, disputes(dispute_date, dr_no)')
         .eq('party_id', partyId);
 
     if (!links) return;
 
-    const totalDisputes = links.length;
-    const totalAsApplicant = links.filter(l => l.role === 'Applicant').length;
-    const totalAsRespondent = links.filter(l => l.role === 'Respondent').length;
+    // Deduplicate: same date + overlapping DR number = one case
+    const seen = new Set();
+    let totalCases = 0;
+    let asApplicant = 0;
+    let asRespondent = 0;
+
+    for (const link of links) {
+        const d = link.disputes;
+        if (!d) continue;
+        const primaryDR = (d.dr_no || '').split(/\s+/)[0] || 'unknown';
+        const caseKey = (d.dispute_date || 'no-date') + '|' + primaryDR;
+
+        if (!seen.has(caseKey)) {
+            seen.add(caseKey);
+            totalCases++;
+        }
+        const roleKey = caseKey + '|' + link.role;
+        if (link.role === 'Applicant' && !seen.has(roleKey)) {
+            seen.add(roleKey);
+            asApplicant++;
+        }
+        if (link.role === 'Respondent' && !seen.has(roleKey)) {
+            seen.add(roleKey);
+            asRespondent++;
+        }
+    }
 
     await supabase
         .from('parties')
         .update({
-            total_disputes: totalDisputes,
-            total_as_applicant: totalAsApplicant,
-            total_as_respondent: totalAsRespondent,
+            total_disputes: totalCases,
+            total_as_applicant: asApplicant,
+            total_as_respondent: asRespondent,
         })
         .eq('id', partyId);
 }
