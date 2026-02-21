@@ -12,10 +12,7 @@ import { scrapeAllDisputes } from '@/lib/rtb-scraper';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-function normalizeName(name) {
-    if (!name) return '';
-    return name.toLowerCase().replace(/\s+/g, ' ').trim();
-}
+import { normalizeName } from '@/lib/normalize-name';
 
 async function upsertParty(supabase, name, partyType) {
     if (!name) return null;

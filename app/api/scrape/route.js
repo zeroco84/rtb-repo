@@ -15,12 +15,7 @@ export const maxDuration = 300; // 5 minutes max for edge/serverless
 export const dynamic = 'force-dynamic';
 
 /**
- * Normalize a name for deduplication
- */
-function normalizeName(name) {
-    if (!name) return '';
-    return name.toLowerCase().replace(/\s+/g, ' ').trim();
-}
+import { normalizeName } from '@/lib/normalize-name';
 
 /**
  * Upsert a party record and return its ID

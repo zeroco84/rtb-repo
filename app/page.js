@@ -105,13 +105,15 @@ export default function Home() {
               <span className="nav-tab-icon">🏆</span>
               League Table
             </button>
-            <button
-              className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`}
-              onClick={() => setActiveTab('admin')}
-            >
-              <span className="nav-tab-icon">{isAdmin ? '⚙️' : '🔒'}</span>
-              Admin
-            </button>
+            {isAdmin && (
+              <button
+                className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`}
+                onClick={() => setActiveTab('admin')}
+              >
+                <span className="nav-tab-icon">⚙️</span>
+                Admin
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -190,6 +192,43 @@ export default function Home() {
           discrepancies should be reported to the RTB directly. This service is not affiliated
           with or endorsed by the RTB.
         </p>
+        {!isAdmin && (
+          <div style={{ marginTop: '16px' }}>
+            <input
+              type="password"
+              placeholder="Admin access"
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                color: 'var(--text-tertiary)',
+                width: '120px',
+                textAlign: 'center',
+                outline: 'none',
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const pw = e.target.value;
+                  e.target.value = '';
+                  fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pw }),
+                  }).then(r => {
+                    if (r.ok) {
+                      handleLogin();
+                      setActiveTab('admin');
+                    } else {
+                      showToast('Invalid password', 'error');
+                    }
+                  });
+                }
+              }}
+            />
+          </div>
+        )}
       </footer>
 
       {/* Toast */}
