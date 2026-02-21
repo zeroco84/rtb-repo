@@ -61,7 +61,7 @@ Navigate to the **Admin** tab, log in, and click **Start Sync** to begin downloa
 
 ## Deployment
 
-The app can be deployed to any platform that supports Next.js (Render, Vercel, Railway, etc.).
+The app can be deployed to any platform that supports Next.js (Render, Railway, Coolify, etc.).
 
 ### Render
 

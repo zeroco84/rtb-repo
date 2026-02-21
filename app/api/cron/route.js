@@ -1,7 +1,7 @@
 /**
  * API Route: /api/cron
  * Daily scheduled sync endpoint
- * This endpoint should be called by an external CRON service (e.g., Vercel CRON, GitHub Actions)
+ * This endpoint should be called by an external CRON service (e.g., GitHub Actions, cron-job.org)
  * 
  * Protected by a simple secret key in the Authorization header
  */
