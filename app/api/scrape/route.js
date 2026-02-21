@@ -198,13 +198,35 @@ export async function DELETE() {
     }
 }
 
-async function runScrape(supabase, jobId) {
+const PAGES_PER_CHUNK = 50; // ~2.5 minutes per chunk at 3s/page
+
+async function runScrape(supabase, jobId, resumeFromPage = 1) {
     let totalRecords = 0;
     let newRecords = 0;
     let updatedRecords = 0;
 
+    // Fetch existing counts if resuming
+    if (resumeFromPage > 1) {
+        const { data: existingJob } = await supabase
+            .from('scrape_jobs')
+            .select('total_records, new_records, updated_records')
+            .eq('id', jobId)
+            .single();
+        if (existingJob) {
+            totalRecords = existingJob.total_records || 0;
+            newRecords = existingJob.new_records || 0;
+            updatedRecords = existingJob.updated_records || 0;
+        }
+    }
+
+    const endPage = resumeFromPage + PAGES_PER_CHUNK - 1;
+    console.log(`[Scrape] Processing chunk: pages ${resumeFromPage} to ${endPage}`);
+
     try {
-        for await (const batch of scrapeAllDisputes()) {
+        let lastPageProcessed = resumeFromPage;
+        let totalPages = null;
+
+        for await (const batch of scrapeAllDisputes({ startPage: resumeFromPage, endPage })) {
             // Check if job was cancelled
             const { data: jobCheck } = await supabase
                 .from('scrape_jobs')
@@ -217,6 +239,8 @@ async function runScrape(supabase, jobId) {
                 return; // Exit gracefully — status already set to 'cancelled'
             }
 
+            totalPages = batch.totalPages;
+
             // Update job progress
             await supabase
                 .from('scrape_jobs')
@@ -225,6 +249,8 @@ async function runScrape(supabase, jobId) {
                     current_page: batch.page,
                 })
                 .eq('id', jobId);
+
+            lastPageProcessed = batch.page;
 
             // Process each record
             for (const record of batch.results) {
@@ -344,7 +370,20 @@ async function runScrape(supabase, jobId) {
                 .eq('id', jobId);
         }
 
-        // Mark job complete
+        // Check if we've finished all pages or need another chunk
+        if (totalPages && lastPageProcessed < totalPages) {
+            // More pages to go — chain the next chunk
+            const nextPage = lastPageProcessed + 1;
+            console.log(`[Scrape] Chunk done (page ${lastPageProcessed}/${totalPages}). Chaining next chunk from page ${nextPage}...`);
+
+            // Small delay between chunks
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Recurse into next chunk
+            return runScrape(supabase, jobId, nextPage);
+        }
+
+        // All pages complete — mark job done
         await supabase
             .from('scrape_jobs')
             .update({

@@ -929,7 +929,7 @@ function LeagueTableView({ showToast }) {
         lineHeight: 1.5, maxWidth: '700px'
       }}>
         💡 <strong style={{ color: 'var(--text-secondary)' }}>Net Awards</strong> = total compensation awarded <em>against</em> a party minus total awarded <em>for</em> them.
-        Positive (red) means they owe money; negative (green) means they received money. Only AI-analysed disputes are included.
+        Positive (red) means they owe; negative (green) means they are owed money. Only AI-analysed disputes are included. These amounts reflect awards, not collections.
       </p>
 
       {/* Table */}
