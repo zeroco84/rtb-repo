@@ -1453,6 +1453,12 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
         >
           ⚙️ Settings
         </button>
+        <button
+          className={`filter-chip ${adminTab === 'api-users' ? 'active' : ''}`}
+          onClick={() => setAdminTab('api-users')}
+        >
+          🔑 API Users
+        </button>
       </div>
 
       {adminTab === 'sync' && (
@@ -1463,6 +1469,9 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
       )}
       {adminTab === 'settings' && (
         <SettingsView showToast={showToast} />
+      )}
+      {adminTab === 'api-users' && (
+        <ApiUsersView showToast={showToast} />
       )}
     </>
   );
@@ -1650,6 +1659,195 @@ function AIProcessingView({ showToast }) {
               <>🤖 Run AI</>
             )}
           </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================
+// API USERS VIEW
+// ============================================
+function ApiUsersView({ showToast }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUser, setNewUser] = useState({ email: '', password: '', name: '', company: '', rate_limit_per_hour: 100 });
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/admin/api-users');
+      if (res.ok) setUsers(await res.json());
+    } catch (err) { console.error(err); }
+    setLoading(false);
+  };
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const res = await fetch('/api/admin/api-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('API user created! Key: ' + data.api_key, 'success');
+        setShowCreate(false);
+        setNewUser({ email: '', password: '', name: '', company: '', rate_limit_per_hour: 100 });
+        fetchUsers();
+      } else {
+        showToast(data.error || 'Failed to create user', 'error');
+      }
+    } catch (err) {
+      showToast('Error creating user', 'error');
+    }
+    setCreating(false);
+  };
+
+  const copyKey = (key) => {
+    navigator.clipboard.writeText(key);
+    showToast('API key copied!', 'success');
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <div className="loading-text">Loading API users...</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)', marginBottom: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: 700 }}>🔑 API Users</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{users.length} registered user{users.length !== 1 ? 's' : ''}</div>
+          </div>
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            style={{
+              padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
+              background: 'linear-gradient(135deg, var(--accent-indigo), var(--accent-purple))',
+              color: 'white', border: 'none', cursor: 'pointer',
+            }}
+          >
+            + New User
+          </button>
+        </div>
+
+        {showCreate && (
+          <form onSubmit={createUser} style={{
+            padding: '16px', borderRadius: '12px', marginBottom: '16px',
+            background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.15)',
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <input
+                type="email" placeholder="Email *" required value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                className="search-input" style={{ fontSize: '13px' }}
+              />
+              <input
+                type="password" placeholder="Password * (min 8 chars)" required minLength={8}
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                className="search-input" style={{ fontSize: '13px' }}
+              />
+              <input
+                type="text" placeholder="Name" value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                className="search-input" style={{ fontSize: '13px' }}
+              />
+              <input
+                type="text" placeholder="Company" value={newUser.company}
+                onChange={(e) => setNewUser({ ...newUser, company: e.target.value })}
+                className="search-input" style={{ fontSize: '13px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Rate limit/hr:</label>
+              <input
+                type="number" value={newUser.rate_limit_per_hour} min={1}
+                onChange={(e) => setNewUser({ ...newUser, rate_limit_per_hour: parseInt(e.target.value) })}
+                className="search-input" style={{ width: '80px', fontSize: '13px' }}
+              />
+              <button type="submit" disabled={creating} style={{
+                marginLeft: 'auto', padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+                background: 'var(--accent-green)', color: 'white', border: 'none', cursor: 'pointer',
+                fontWeight: 600, opacity: creating ? 0.6 : 1,
+              }}>
+                {creating ? 'Creating…' : 'Create User'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {users.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-tertiary)' }}>
+            No API users yet. Create one to get started.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {users.map(u => (
+              <div key={u.id} style={{
+                padding: '12px 16px', borderRadius: '10px',
+                background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+                display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap',
+              }}>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {u.name || u.email}
+                    {!u.is_active && <span style={{ color: 'var(--accent-red)', fontSize: '11px', marginLeft: '8px' }}>DISABLED</span>}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                    {u.email}{u.company ? ` · ${u.company}` : ''}
+                  </div>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                  <div style={{ fontWeight: 600 }}>{u.total_api_calls || 0}</div>
+                  <div style={{ color: 'var(--text-tertiary)' }}>calls</div>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                  <div style={{ fontWeight: 600 }}>{u.rate_limit_per_hour}/hr</div>
+                  <div style={{ color: 'var(--text-tertiary)' }}>limit</div>
+                </div>
+                <button
+                  onClick={() => copyKey(u.api_key)}
+                  style={{
+                    padding: '6px 12px', borderRadius: '6px', fontSize: '11px',
+                    background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)',
+                    color: '#818cf8', cursor: 'pointer', fontFamily: 'monospace',
+                  }}
+                  title={u.api_key}
+                >
+                  📋 {u.api_key.substring(0, 18)}…
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)' }}>
+        <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '12px' }}>📖 API Documentation</div>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.8, fontFamily: 'monospace' }}>
+          <div style={{ marginBottom: '8px' }}><strong>Base URL:</strong> {typeof window !== 'undefined' ? window.location.origin : ''}/api/v1</div>
+          <div style={{ marginBottom: '4px' }}><strong>Auth:</strong> Authorization: Bearer rtb_live_xxx</div>
+          <div style={{ marginBottom: '16px', fontSize: '11px', color: 'var(--text-tertiary)' }}>All endpoints require a valid API key.</div>
+
+          <div style={{ marginBottom: '4px' }}>POST /auth/login — Login with email + password</div>
+          <div style={{ marginBottom: '4px' }}>GET /disputes — Search disputes (q, name, dr_no, outcome, type, date_from, date_to, min_award, max_award)</div>
+          <div style={{ marginBottom: '4px' }}>GET /disputes/:dr_no — Single dispute with full analysis</div>
+          <div style={{ marginBottom: '4px' }}>GET /parties — Search parties (q, type, min_disputes, has_awards)</div>
+          <div style={{ marginBottom: '4px' }}>GET /parties/:id — Party profile with dispute history</div>
+          <div>GET /search — Full-text search (q, type, limit)</div>
         </div>
       </div>
     </>

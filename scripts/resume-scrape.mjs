@@ -1,25 +1,17 @@
 #!/usr/bin/env node
 /**
- * One-off script: Resume scraping RTB disputes from a specific page
- * Runs as a standalone process, unaffected by dev server restarts.
- * 
- * Usage: node --env-file=.env.local scripts/resume-scrape.mjs
+ * Resume scraping from the ACTUAL last page we successfully scraped.
+ * Dynamically determines start page instead of hardcoding.
  */
 
 import { scrapeAllDisputes } from '../lib/rtb-scraper.js';
 import { createClient } from '@supabase/supabase-js';
-
-const START_PAGE = 625;
+import { normalizeName } from '../lib/normalize-name.js';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-function normalizeName(name) {
-    if (!name) return '';
-    return name.toLowerCase().replace(/\s+/g, ' ').trim();
-}
 
 async function upsertParty(name, partyType) {
     if (!name) return null;
@@ -40,25 +32,68 @@ async function upsertParty(name, partyType) {
 
 async function updatePartyCounts(partyId) {
     if (!partyId) return;
-    const { data: links } = await supabase.from('dispute_parties').select('role').eq('party_id', partyId);
+    const { data: links } = await supabase
+        .from('dispute_parties')
+        .select('role, disputes(dispute_date, dr_no)')
+        .eq('party_id', partyId);
     if (!links) return;
+
+    const seen = new Set();
+    let totalCases = 0, asApplicant = 0, asRespondent = 0;
+    for (const link of links) {
+        const d = link.disputes;
+        if (!d) continue;
+        const primaryDR = (d.dr_no || '').split(/\s+/)[0] || 'unknown';
+        const caseKey = (d.dispute_date || 'no-date') + '|' + primaryDR;
+        if (!seen.has(caseKey)) { seen.add(caseKey); totalCases++; }
+        const roleKey = caseKey + '|' + link.role;
+        if (link.role === 'Applicant' && !seen.has(roleKey)) { seen.add(roleKey); asApplicant++; }
+        if (link.role === 'Respondent' && !seen.has(roleKey)) { seen.add(roleKey); asRespondent++; }
+    }
+
     await supabase.from('parties').update({
-        total_disputes: links.length,
-        total_as_applicant: links.filter(l => l.role === 'Applicant').length,
-        total_as_respondent: links.filter(l => l.role === 'Respondent').length,
+        total_disputes: totalCases,
+        total_as_applicant: asApplicant,
+        total_as_respondent: asRespondent,
     }).eq('id', partyId);
 }
 
 async function main() {
-    console.log(`=== RTB Scrape: Resuming from page ${START_PAGE} ===\n`);
+    // Find the highest source_page we have
+    const { data: maxPage } = await supabase
+        .from('disputes')
+        .select('source_page')
+        .not('source_page', 'is', null)
+        .order('source_page', { ascending: false })
+        .limit(1)
+        .single();
 
-    let totalRecords = 0;
-    let newRecords = 0;
-    let updatedRecords = 0;
-    let currentPage = START_PAGE;
+    // Also check: how many pages have at least one record?
+    const { count: totalInDB } = await supabase
+        .from('disputes')
+        .select('*', { count: 'exact', head: true });
+
+    const highestPage = maxPage?.source_page || 0;
+    // Start from page 1 if we have less than expected, otherwise resume
+    const expectedTotal = 2090 * 10;
+    const startPage = totalInDB >= expectedTotal ? highestPage + 1 : 1;
+
+    console.log('=== RTB Scraper (Smart Resume) ===');
+    console.log('Total in DB:', totalInDB);
+    console.log('Highest source_page:', highestPage);
+    console.log('Starting from page:', startPage);
+    console.log('');
+
+    if (startPage > 2090) {
+        console.log('All pages already scraped!');
+        return;
+    }
+
+    let totalRecords = 0, newRecords = 0, updatedRecords = 0;
+    let currentPage = startPage;
 
     try {
-        for await (const batch of scrapeAllDisputes({ startPage: START_PAGE })) {
+        for await (const batch of scrapeAllDisputes({ startPage })) {
             currentPage = batch.page;
 
             for (const record of batch.results) {
@@ -70,13 +105,6 @@ async function main() {
                             .from('disputes').select('id').eq('dr_no', record.dr_no).single();
 
                         if (existing) {
-                            await supabase.from('disputes').update({
-                                heading: record.heading, tr_no: record.tr_no,
-                                dispute_date: record.dispute_date,
-                                applicant_name: record.applicant_name, applicant_role: record.applicant_role,
-                                respondent_name: record.respondent_name, respondent_role: record.respondent_role,
-                                pdf_urls: record.pdf_urls, raw_html: record.raw_html,
-                            }).eq('id', existing.id);
                             updatedRecords++;
                             continue;
                         }
@@ -126,20 +154,20 @@ async function main() {
                 }
             }
 
-            console.log(`  Page ${batch.page}/${batch.totalPages} — ${newRecords} new, ${updatedRecords} updated (${totalRecords} total)`);
+            console.log('  Page ' + batch.page + '/' + batch.totalPages + ' — ' + newRecords + ' new, ' + updatedRecords + ' updated (' + totalRecords + ' total)');
         }
     } catch (err) {
         console.error('\n[Scrape] Fatal error:', err.message);
     }
 
     console.log('\n=== SCRAPE COMPLETE ===');
-    console.log(`Pages: ${START_PAGE} to ${currentPage}`);
-    console.log(`New records: ${newRecords}`);
-    console.log(`Updated records: ${updatedRecords}`);
-    console.log(`Total processed: ${totalRecords}`);
+    console.log('Pages: ' + startPage + ' to ' + currentPage);
+    console.log('New records: ' + newRecords);
+    console.log('Updated records: ' + updatedRecords);
+    console.log('Total processed: ' + totalRecords);
 
     const { count } = await supabase.from('disputes').select('*', { count: 'exact', head: true });
-    console.log(`Total disputes in DB: ${count}`);
+    console.log('Total disputes in DB: ' + count);
 }
 
 main().catch(err => { console.error('Fatal:', err); process.exit(1); });
