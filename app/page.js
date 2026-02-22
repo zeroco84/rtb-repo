@@ -2398,9 +2398,7 @@ function EnforcementAISection({ showToast }) {
     setRunning(true);
     showToast('Starting enforcement orders AI processing...', 'info');
     try {
-      const res = await fetch('/api/ai/batch/enforcement', {
-        headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
-      });
+      const res = await fetch('/api/ai/batch/enforcement');
       const data = await res.json();
 
       if (res.ok) {

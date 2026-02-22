@@ -8,6 +8,7 @@
 
 import { createServiceClient } from '@/lib/supabase';
 import { processUnanalysedEnforcementOrders } from '@/lib/openai-service';
+import { isAuthenticated } from '@/lib/admin-auth';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -16,10 +17,13 @@ const BATCH_SIZE = 5;
 const MAX_RUNTIME_MS = 4 * 60 * 1000;
 
 export async function GET(request) {
+    // Accept either CRON_SECRET header or admin cookie
     const authHeader = request.headers.get('Authorization');
     const cronSecret = process.env.CRON_SECRET;
+    const hasCronAuth = cronSecret && authHeader === `Bearer ${cronSecret}`;
+    const hasAdminAuth = await isAuthenticated();
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!hasCronAuth && !hasAdminAuth) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
