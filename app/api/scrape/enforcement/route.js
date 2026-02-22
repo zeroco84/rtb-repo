@@ -40,7 +40,7 @@ export async function GET() {
     }
 }
 
-export async function POST() {
+export async function POST(request) {
     const authError = await requireAdmin();
     if (authError) return authError;
 
@@ -56,23 +56,28 @@ export async function POST() {
             .single();
 
         if (runningJob) {
-            // Check if the job is stale (no progress in 5+ minutes)
+            // Check if the job is stale (no progress in 2+ minutes)
             const updatedAt = new Date(runningJob.updated_at || runningJob.created_at);
             const minutesSinceUpdate = (Date.now() - updatedAt.getTime()) / 1000 / 60;
 
-            if (minutesSinceUpdate > 5 && runningJob.current_page > 0) {
+            if (minutesSinceUpdate > 2 && runningJob.current_page > 0) {
                 // Resume from where it stopped
                 const resumePage = (runningJob.current_page || 0) + 1;
                 console.log(`[EnforcementScrape] Resuming stale job ${runningJob.id} from page ${resumePage} (stale for ${Math.round(minutesSinceUpdate)}min)`);
 
-                runEnforcementScrape(supabase, runningJob.id, resumePage).catch(err => {
-                    console.error('[EnforcementScrape] Resume failed:', err);
-                });
+                // Process this chunk synchronously, then self-retrigger
+                const result = await runEnforcementChunk(supabase, runningJob.id, resumePage);
+
+                // Self-retrigger next chunk if more remain
+                if (result.morePages) {
+                    selfRetrigger(request);
+                }
 
                 return Response.json({
-                    message: `Resuming enforcement scrape from page ${resumePage}`,
+                    message: `Resumed from page ${resumePage}`,
                     job: runningJob,
                     resumed: true,
+                    ...result,
                 });
             }
 
@@ -95,18 +100,44 @@ export async function POST() {
 
         if (jobError) throw jobError;
 
-        // Start scraping in background
-        runEnforcementScrape(supabase, job.id).catch(err => {
-            console.error('[EnforcementScrape] Background scrape failed:', err);
-        });
+        // Process first chunk synchronously
+        const result = await runEnforcementChunk(supabase, job.id, 1);
+
+        // Self-retrigger next chunk if more remain
+        if (result.morePages) {
+            selfRetrigger(request);
+        }
 
         return Response.json({
-            message: 'Enforcement orders scrape started',
-            job,
+            message: result.morePages
+                ? `Chunk processed (page ${result.lastPage}/${result.totalPages}), next chunk queued`
+                : 'Enforcement orders scrape completed',
+            job: { ...job, ...result },
         });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
     }
+}
+
+/**
+ * Fire-and-forget self-retrigger via HTTP.
+ * Uses admin cookie forwarding so auth works.
+ */
+function selfRetrigger(originalRequest) {
+    const url = new URL(originalRequest.url);
+    const selfUrl = url.origin + '/api/scrape/enforcement';
+
+    // Forward the cookie header for admin auth
+    const cookieHeader = originalRequest.headers.get('cookie') || '';
+
+    setTimeout(() => {
+        fetch(selfUrl, {
+            method: 'POST',
+            headers: { 'Cookie': cookieHeader },
+        }).catch(err => {
+            console.error('[EnforcementScrape] Self-retrigger failed:', err.message);
+        });
+    }, 2000); // 2s delay between chunks
 }
 
 export async function DELETE() {
@@ -153,7 +184,6 @@ async function upsertParty(supabase, name) {
     const normalized = normalizeName(name);
     if (!normalized) return null;
 
-    // Try to find existing
     const { data: existing } = await supabase
         .from('parties')
         .select('id')
@@ -162,19 +192,17 @@ async function upsertParty(supabase, name) {
 
     if (existing) return existing.id;
 
-    // Insert new
     const { data: inserted, error } = await supabase
         .from('parties')
         .insert({
             name,
             normalized_name: normalized,
-            party_type: 'Unknown', // Enforcement orders don't specify landlord/tenant in the heading
+            party_type: 'Unknown',
         })
         .select('id')
         .single();
 
     if (error) {
-        // Handle race condition — try to find again
         if (error.code === '23505') {
             const { data: retry } = await supabase
                 .from('parties')
@@ -196,19 +224,16 @@ async function upsertParty(supabase, name) {
 async function updatePartyCounts(supabase, partyId) {
     if (!partyId) return;
 
-    // Count dispute links
     const { data: disputeLinks } = await supabase
         .from('dispute_parties')
         .select('role, disputes(dispute_date, dr_no)')
         .eq('party_id', partyId);
 
-    // Count enforcement order links
     const { data: enforcementLinks } = await supabase
         .from('enforcement_parties')
         .select('role, enforcement_orders(order_date, court_ref_no)')
         .eq('party_id', partyId);
 
-    // Deduplicate disputes (same logic as existing)
     const seen = new Set();
     let totalCases = 0;
     let asApplicant = 0;
@@ -219,26 +244,18 @@ async function updatePartyCounts(supabase, partyId) {
         if (!d) continue;
         const primaryDR = (d.dr_no || '').split(/\s+/)[0] || 'unknown';
         const caseKey = 'D|' + (d.dispute_date || 'no-date') + '|' + primaryDR;
-        if (!seen.has(caseKey)) {
-            seen.add(caseKey);
-            totalCases++;
-        }
+        if (!seen.has(caseKey)) { seen.add(caseKey); totalCases++; }
         const roleKey = caseKey + '|' + link.role;
         if (link.role === 'Applicant' && !seen.has(roleKey)) { seen.add(roleKey); asApplicant++; }
         if (link.role === 'Respondent' && !seen.has(roleKey)) { seen.add(roleKey); asRespondent++; }
     }
 
-    // Count enforcement orders (simpler — each is unique by court_ref_no)
     let enforcementCount = 0;
     for (const link of (enforcementLinks || [])) {
         const eo = link.enforcement_orders;
         if (!eo) continue;
         const caseKey = 'E|' + (eo.court_ref_no || eo.order_date || 'unknown');
-        if (!seen.has(caseKey)) {
-            seen.add(caseKey);
-            totalCases++;
-            enforcementCount++;
-        }
+        if (!seen.has(caseKey)) { seen.add(caseKey); totalCases++; enforcementCount++; }
         const roleKey = caseKey + '|' + link.role;
         if (link.role === 'Applicant' && !seen.has(roleKey)) { seen.add(roleKey); asApplicant++; }
         if (link.role === 'Respondent' && !seen.has(roleKey)) { seen.add(roleKey); asRespondent++; }
@@ -254,15 +271,17 @@ async function updatePartyCounts(supabase, partyId) {
         })
         .eq('id', partyId);
 }
-const PAGES_PER_CHUNK = 20; // ~1 minute per chunk at 3s/page — enforcement has ~70 pages
 
-async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
+
+const PAGES_PER_CHUNK = 5; // Process 5 pages per request (~15-20 seconds)
+
+async function runEnforcementChunk(supabase, jobId, startPage) {
     let totalRecords = 0;
     let newRecords = 0;
     let updatedRecords = 0;
 
-    // Fetch existing counts if resuming from a previous chunk
-    if (resumeFromPage > 1) {
+    // Fetch existing counts if resuming
+    if (startPage > 1) {
         const { data: existingJob } = await supabase
             .from('scrape_jobs')
             .select('total_records, new_records, updated_records')
@@ -275,14 +294,14 @@ async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
         }
     }
 
-    const endPage = resumeFromPage + PAGES_PER_CHUNK - 1;
-    console.log(`[EnforcementScrape] Processing chunk: pages ${resumeFromPage} to ${endPage}`);
+    const endPage = startPage + PAGES_PER_CHUNK - 1;
+    console.log(`[EnforcementScrape] Chunk: pages ${startPage}–${endPage}`);
+
+    let lastPageProcessed = startPage;
+    let totalPages = null;
 
     try {
-        let lastPageProcessed = resumeFromPage;
-        let totalPages = null;
-
-        for await (const batch of scrapeAllEnforcementOrders({ startPage: resumeFromPage, endPage })) {
+        for await (const batch of scrapeAllEnforcementOrders({ startPage, endPage })) {
             // Check if cancelled
             const { data: jobCheck } = await supabase
                 .from('scrape_jobs')
@@ -291,8 +310,8 @@ async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
                 .single();
 
             if (jobCheck?.status === 'cancelled') {
-                console.log(`[EnforcementScrape] Job ${jobId} was cancelled by admin`);
-                return;
+                console.log(`[EnforcementScrape] Job ${jobId} was cancelled`);
+                return { morePages: false, lastPage: lastPageProcessed, totalPages };
             }
 
             totalPages = batch.totalPages;
@@ -414,7 +433,7 @@ async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
                 }
             }
 
-            // Update counts on job
+            // Update counts
             await supabase
                 .from('scrape_jobs')
                 .update({
@@ -425,53 +444,49 @@ async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
                 .eq('id', jobId);
         }
 
-        // Check if we've finished all pages or need another chunk
-        if (totalPages && lastPageProcessed < totalPages) {
-            const nextPage = lastPageProcessed + 1;
-            console.log(`[EnforcementScrape] Chunk done (page ${lastPageProcessed}/${totalPages}). Chaining next chunk from page ${nextPage}...`);
+        // Check if more pages remain
+        const morePages = totalPages && lastPageProcessed < totalPages;
 
-            // Delay between chunks to be respectful
-            await new Promise(resolve => setTimeout(resolve, 2000));
+        if (!morePages) {
+            // All done — mark complete
+            await supabase
+                .from('scrape_jobs')
+                .update({
+                    status: 'completed',
+                    total_records: totalRecords,
+                    new_records: newRecords,
+                    updated_records: updatedRecords,
+                    completed_at: new Date().toISOString(),
+                })
+                .eq('id', jobId);
 
-            // Recurse into next chunk
-            return runEnforcementScrape(supabase, jobId, nextPage);
-        }
+            console.log(`[EnforcementScrape] Complete: ${newRecords} new, ${updatedRecords} updated, ${totalRecords} total`);
 
-        // All pages complete — mark job done
-        await supabase
-            .from('scrape_jobs')
-            .update({
-                status: 'completed',
-                total_records: totalRecords,
-                new_records: newRecords,
-                updated_records: updatedRecords,
-                completed_at: new Date().toISOString(),
-            })
-            .eq('id', jobId);
+            // Auto-trigger AI processing
+            if (newRecords > 0) {
+                const { data: aiSetting } = await supabase
+                    .from('admin_settings')
+                    .select('value')
+                    .eq('key', 'ai_auto_process')
+                    .single();
 
-        console.log(`[EnforcementScrape] Complete: ${newRecords} new, ${updatedRecords} updated, ${totalRecords} total`);
-
-        // Auto-trigger AI processing on new records
-        if (newRecords > 0) {
-            const { data: aiSetting } = await supabase
-                .from('admin_settings')
-                .select('value')
-                .eq('key', 'ai_auto_process')
-                .single();
-
-            const autoProcess = aiSetting?.value !== 'false';
-            if (autoProcess) {
-                console.log('[EnforcementScrape] Starting automatic AI processing...');
-                try {
-                    const aiResult = await processUnanalysedEnforcementOrders(20);
-                    console.log(`[AI-EO] Auto-process: ${aiResult.processed} analysed, ${aiResult.failed} failed`);
-                } catch (aiError) {
-                    console.error('[AI-EO] Auto-process error:', aiError.message);
+                if (aiSetting?.value !== 'false') {
+                    console.log('[EnforcementScrape] Starting automatic AI processing...');
+                    try {
+                        const aiResult = await processUnanalysedEnforcementOrders(20);
+                        console.log(`[AI-EO] Auto-process: ${aiResult.processed} analysed, ${aiResult.failed} failed`);
+                    } catch (aiError) {
+                        console.error('[AI-EO] Auto-process error:', aiError.message);
+                    }
                 }
             }
+        } else {
+            console.log(`[EnforcementScrape] Chunk done (page ${lastPageProcessed}/${totalPages}). Will self-retrigger.`);
         }
+
+        return { morePages, lastPage: lastPageProcessed, totalPages, totalRecords, newRecords, updatedRecords };
     } catch (error) {
-        console.error('[EnforcementScrape] Job failed:', error.message);
+        console.error('[EnforcementScrape] Chunk failed:', error.message);
         await supabase
             .from('scrape_jobs')
             .update({
@@ -483,5 +498,6 @@ async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
                 completed_at: new Date().toISOString(),
             })
             .eq('id', jobId);
+        return { morePages: false, lastPage: lastPageProcessed, totalPages, error: error.message };
     }
 }
