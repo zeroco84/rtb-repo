@@ -56,6 +56,26 @@ export async function POST() {
             .single();
 
         if (runningJob) {
+            // Check if the job is stale (no progress in 5+ minutes)
+            const updatedAt = new Date(runningJob.updated_at || runningJob.created_at);
+            const minutesSinceUpdate = (Date.now() - updatedAt.getTime()) / 1000 / 60;
+
+            if (minutesSinceUpdate > 5 && runningJob.current_page > 0) {
+                // Resume from where it stopped
+                const resumePage = (runningJob.current_page || 0) + 1;
+                console.log(`[EnforcementScrape] Resuming stale job ${runningJob.id} from page ${resumePage} (stale for ${Math.round(minutesSinceUpdate)}min)`);
+
+                runEnforcementScrape(supabase, runningJob.id, resumePage).catch(err => {
+                    console.error('[EnforcementScrape] Resume failed:', err);
+                });
+
+                return Response.json({
+                    message: `Resuming enforcement scrape from page ${resumePage}`,
+                    job: runningJob,
+                    resumed: true,
+                });
+            }
+
             return Response.json({
                 error: 'An enforcement scrape job is already running',
                 job: runningJob,
