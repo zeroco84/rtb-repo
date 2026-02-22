@@ -105,6 +105,13 @@ export default function Home() {
               <span className="nav-tab-icon">🏆</span>
               League Table
             </button>
+            <button
+              className={`nav-tab ${activeTab === 'enforcement' ? 'active' : ''}`}
+              onClick={() => setActiveTab('enforcement')}
+            >
+              <span className="nav-tab-icon">⚖️</span>
+              Enforcement
+            </button>
             {isAdmin && (
               <button
                 className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`}
@@ -128,6 +135,9 @@ export default function Home() {
         )}
         {activeTab === 'league' && (
           <LeagueTableView showToast={showToast} navigateToPartyId={navigateToPartyId} onNavigated={() => setNavigateToPartyId(null)} onDisputeClick={openDisputeByDrNo} />
+        )}
+        {activeTab === 'enforcement' && (
+          <EnforcementOrdersView showToast={showToast} />
         )}
         {activeTab === 'admin' && (
           <AdminGate
@@ -1285,6 +1295,9 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
 // PARTY DETAIL MODAL
 // ============================================
 function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
+  const enforcementOrders = detail?.enforcement_orders || [];
+  const disputes = detail?.disputes || [];
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="glass-card-static modal-content" onClick={e => e.stopPropagation()}>
@@ -1298,8 +1311,13 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
                 {party.party_type || 'Unknown'}
               </span>
               <span className="badge badge-glass">
-                {party.total_disputes} dispute{party.total_disputes !== 1 ? 's' : ''}
+                {party.total_disputes} case{party.total_disputes !== 1 ? 's' : ''}
               </span>
+              {(party.total_enforcement_orders > 0) && (
+                <span className="badge badge-amber">
+                  ⚖️ {party.total_enforcement_orders} enforcement
+                </span>
+              )}
             </div>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
@@ -1307,7 +1325,7 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
 
         <div className="modal-grid-3">
           <div className="glass-card stat-card" style={{ padding: '12px' }}>
-            <div className="stat-label" style={{ fontSize: '10px' }}>Total</div>
+            <div className="stat-label" style={{ fontSize: '10px' }}>Total Cases</div>
             <div className="stat-value blue" style={{ fontSize: '22px' }}>{party.total_disputes}</div>
           </div>
           <div className="glass-card stat-card" style={{ padding: '12px' }}>
@@ -1344,34 +1362,71 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
           </div>
         )}
 
-        <div className="modal-field-label" style={{ marginBottom: '12px' }}>Dispute History</div>
+        <div className="modal-field-label" style={{ marginBottom: '12px' }}>Case History</div>
 
         {!detail ? (
           <div className="loading-container" style={{ padding: '20px' }}>
             <div className="spinner spinner-sm"></div>
-            <div className="loading-text">Loading disputes...</div>
+            <div className="loading-text">Loading case history...</div>
           </div>
-        ) : detail.disputes && detail.disputes.length > 0 ? (
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {detail.disputes.map((d, i) => (
-              <div key={i} className="party-dispute-row" style={{ cursor: 'pointer' }} onClick={() => d.dr_no && onDisputeClick(d.dr_no)}>
-                <div className="party-dispute-date">
-                  {d.dispute_date ? new Date(d.dispute_date).toLocaleDateString('en-IE') : '—'}
-                </div>
-                <div className="party-dispute-heading">
-                  <div>{d.heading}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                    {d.dr_no && <span>DR: {d.dr_no} </span>}
-                    <span className={`badge ${d.party_role === 'Applicant' ? 'badge-blue' : 'badge-amber'}`} style={{ marginLeft: '4px' }}>
-                      {d.party_role}
-                    </span>
+        ) : (disputes.length > 0 || enforcementOrders.length > 0) ? (
+          <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            {/* Disputes */}
+            {disputes.length > 0 && (
+              <>
+                {enforcementOrders.length > 0 && (
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', marginTop: '4px' }}>
+                    📋 Determination Orders ({disputes.length})
                   </div>
+                )}
+                {disputes.map((d, i) => (
+                  <div key={'d-' + i} className="party-dispute-row" style={{ cursor: 'pointer' }} onClick={() => d.dr_no && onDisputeClick(d.dr_no)}>
+                    <div className="party-dispute-date">
+                      {d.dispute_date ? new Date(d.dispute_date).toLocaleDateString('en-IE') : '—'}
+                    </div>
+                    <div className="party-dispute-heading">
+                      <div>{d.heading}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                        {d.dr_no && <span>DR: {d.dr_no} </span>}
+                        <span className={`badge ${d.party_role === 'Applicant' ? 'badge-blue' : 'badge-amber'}`} style={{ marginLeft: '4px' }}>
+                          {d.party_role}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Enforcement Orders */}
+            {enforcementOrders.length > 0 && (
+              <>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', marginTop: disputes.length > 0 ? '16px' : '4px' }}>
+                  ⚖️ Court Enforcement Orders ({enforcementOrders.length})
                 </div>
-              </div>
-            ))}
+                {enforcementOrders.map((eo, i) => (
+                  <div key={'e-' + i} className="party-dispute-row">
+                    <div className="party-dispute-date">
+                      {eo.order_date ? new Date(eo.order_date).toLocaleDateString('en-IE') : '—'}
+                    </div>
+                    <div className="party-dispute-heading">
+                      <div>{eo.heading}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                        {eo.court_ref_no && <span style={{ color: 'var(--accent-amber)' }}>Court: {eo.court_ref_no} </span>}
+                        {eo.subject && <span className="badge badge-glass" style={{ marginLeft: '4px', fontSize: '10px' }}>{eo.subject}</span>}
+                        <span className={`badge ${eo.party_role === 'Applicant' ? 'badge-blue' : 'badge-amber'}`} style={{ marginLeft: '4px' }}>
+                          {eo.party_role}
+                        </span>
+                        {eo.ai_outcome && <span className="badge badge-green" style={{ marginLeft: '4px', fontSize: '10px' }}>{eo.ai_outcome}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ) : (
-          <div className="empty-state-text">No dispute records found</div>
+          <div className="empty-state-text">No case records found</div>
         )}
       </div>
     </div>
@@ -1574,7 +1629,12 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
       </div>
 
       {adminTab === 'sync' && (
-        <ScraperView showToast={showToast} onComplete={onSyncComplete} />
+        <>
+          <ScraperView showToast={showToast} onComplete={onSyncComplete} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <EnforcementSyncView showToast={showToast} />
+          </div>
+        </>
       )}
       {adminTab === 'ai' && (
         <AIProcessingView showToast={showToast} />
@@ -1743,16 +1803,16 @@ function AIProcessingView({ showToast }) {
         </div>
       </div>
 
-      {/* Manual run */}
+      {/* Manual run — Disputes */}
       <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
-              {running ? 'Processing disputes...' : 'Run AI Analysis'}
+              {running ? 'Processing disputes...' : 'Run AI Analysis — Disputes'}
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
               {running
-                ? 'GPT-4o-mini is analysing dispute PDFs. This may take a few minutes.'
+                ? 'AI is analysing dispute PDFs. This may take a few minutes.'
                 : 'Manually process the next batch of unanalysed disputes (20 at a time)'}
             </div>
           </div>
@@ -1768,11 +1828,14 @@ function AIProcessingView({ showToast }) {
                 Processing...
               </>
             ) : (
-              <>🤖 Run AI</>
+              <>🤖 Run AI — Disputes</>
             )}
           </button>
         </div>
       </div>
+
+      {/* Manual run — Enforcement Orders */}
+      <EnforcementAISection showToast={showToast} />
     </>
   );
 }
@@ -2305,6 +2368,597 @@ function SettingsView({ showToast }) {
 // ============================================
 // SCRAPER VIEW
 // ============================================
+// ============================================
+// ENFORCEMENT AI SECTION (within Admin AI tab)
+// ============================================
+function EnforcementAISection({ showToast }) {
+  const [running, setRunning] = useState(false);
+  const [eoStatus, setEoStatus] = useState({ total: 0, processed: 0, pending: 0 });
+
+  useEffect(() => {
+    fetchEoStatus();
+  }, []);
+
+  const fetchEoStatus = async () => {
+    try {
+      const res = await fetch('/api/scrape/enforcement');
+      if (res.ok) {
+        const data = await res.json();
+        setEoStatus(prev => ({
+          ...prev,
+          total: data.total_enforcement_orders || 0,
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch enforcement status:', err);
+    }
+  };
+
+  const runEnforcementAI = async () => {
+    setRunning(true);
+    showToast('Starting enforcement orders AI processing...', 'info');
+    try {
+      const res = await fetch('/api/ai/batch/enforcement', {
+        headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showToast(`Enforcement AI: ${data.total_processed} processed, ${data.total_failed} failed, ${data.remaining} remaining`, 'success');
+      } else {
+        showToast(data.error || 'Enforcement AI processing failed', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to run enforcement AI processing', 'error');
+    }
+    setRunning(false);
+  };
+
+  return (
+    <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)', marginTop: 'var(--spacing-md)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
+            {running ? 'Processing enforcement orders...' : 'Run AI Analysis — Enforcement Orders'}
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+            {running
+              ? 'AI is analysing enforcement order PDFs. This may take a few minutes.'
+              : `Process unanalysed enforcement order PDFs (${eoStatus.total} total orders in database)`}
+          </div>
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={runEnforcementAI}
+          disabled={running}
+          id="run-eo-ai-btn"
+        >
+          {running ? (
+            <>
+              <div className="spinner spinner-sm" style={{ borderTopColor: 'white' }}></div>
+              Processing...
+            </>
+          ) : (
+            <>⚖️ Run AI — Enforcement</>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// ENFORCEMENT SYNC VIEW (within Admin Sync tab)
+// ============================================
+function EnforcementSyncView({ showToast }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const pollInterval = useRef(null);
+
+  useEffect(() => {
+    fetchStatus();
+    return () => { if (pollInterval.current) clearInterval(pollInterval.current); };
+  }, []);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch('/api/scrape/enforcement');
+      const data = await res.json();
+      setStatus(data);
+      if (data.latest_job?.status === 'running') {
+        setRunning(true);
+        startPolling();
+      }
+    } catch (err) { console.error(err); }
+    setLoading(false);
+  };
+
+  const startPolling = () => {
+    if (pollInterval.current) clearInterval(pollInterval.current);
+    pollInterval.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/scrape/enforcement');
+        const data = await res.json();
+        setStatus(data);
+        if (data.latest_job?.status !== 'running') {
+          clearInterval(pollInterval.current);
+          setRunning(false);
+          if (data.latest_job?.status === 'completed') {
+            showToast('Enforcement orders sync completed!', 'success');
+          } else if (data.latest_job?.status === 'failed') {
+            showToast(`Enforcement sync failed: ${data.latest_job.error_message}`, 'error');
+          }
+        }
+      } catch (err) { console.error(err); }
+    }, 3000);
+  };
+
+  const startScrape = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch('/api/scrape/enforcement', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to start enforcement sync', 'error');
+        setRunning(false);
+        return;
+      }
+      showToast('Enforcement orders sync started!', 'info');
+      startPolling();
+    } catch (err) {
+      showToast('Failed to start enforcement sync', 'error');
+      setRunning(false);
+    }
+  };
+
+  const stopScrape = async () => {
+    try {
+      const res = await fetch('/api/scrape/enforcement', { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Enforcement sync cancelled', 'info');
+        setRunning(false);
+        if (pollInterval.current) clearInterval(pollInterval.current);
+        fetchStatus();
+      }
+    } catch (err) { showToast('Failed to stop sync', 'error'); }
+  };
+
+  const job = status?.latest_job;
+  const progress = job && job.total_pages > 0 ? Math.round((job.current_page / job.total_pages) * 100) : 0;
+
+  return (
+    <div className="glass-card-static" style={{ marginBottom: 'var(--spacing-md)' }}>
+      <div className="section-header">
+        <div className="section-title">
+          <span className="section-title-icon">⚖️</span>
+          Enforcement Orders Sync
+        </div>
+        {job && (
+          <span className={`badge ${job.status === 'completed' ? 'badge-green' : job.status === 'running' ? 'badge-blue' : job.status === 'failed' ? 'badge-red' : 'badge-glass'}`}>
+            {job.status === 'running' && '⏳ '}{job.status}
+          </span>
+        )}
+      </div>
+
+      <div className="progress-container">
+        {running && job ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                Downloading page {job.current_page || 0} of {job.total_pages || '?'}
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-blue)' }}>
+                {progress}%
+              </span>
+            </div>
+            <div className="progress-bar-outer">
+              <div className="progress-bar-inner" style={{ width: `${progress}%` }}></div>
+            </div>
+            <div className="progress-stats">
+              <span>Records: {job.total_records || 0}</span>
+              <span>New: {job.new_records || 0}</span>
+              <span>Updated: {job.updated_records || 0}</span>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
+                Enforcement Orders
+              </div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-amber)' }}>
+                {(status?.total_enforcement_orders || 0).toLocaleString()}
+              </div>
+            </div>
+            {job && (
+              <>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
+                    Last Sync
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                    {new Date(job.completed_at || job.created_at).toLocaleString('en-IE')}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
+                    Records Processed
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                    {(job.total_records || 0).toLocaleString()}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '0 var(--spacing-lg) var(--spacing-lg)', display: 'flex', gap: '8px' }}>
+        <button
+          className="btn btn-primary"
+          onClick={startScrape}
+          disabled={running}
+          id="start-enforcement-sync-btn"
+        >
+          {running ? (
+            <><div className="spinner spinner-sm" style={{ borderTopColor: 'white' }}></div> Syncing...</>
+          ) : (
+            <>⚖️ Sync Enforcement Orders</>
+          )}
+        </button>
+        {running && (
+          <button
+            onClick={stopScrape}
+            style={{
+              padding: '10px 20px', fontSize: '13px', fontWeight: 600,
+              background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '10px', color: '#f87171', cursor: 'pointer',
+            }}
+          >
+            ⏹ Stop
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// ENFORCEMENT ORDERS VIEW (main tab)
+// ============================================
+function EnforcementOrdersView({ showToast }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [subject, setSubject] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const searchTimeout = useRef(null);
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '25',
+        sort_by: 'order_date',
+        sort_order: 'desc',
+      });
+      if (search) params.set('search', search);
+      if (subject) params.set('subject', subject);
+
+      const res = await fetch(`/api/enforcement-orders?${params}`);
+      const data = await res.json();
+
+      setOrders(data.enforcement_orders || []);
+      setTotalPages(data.total_pages || 0);
+      setTotal(data.total || 0);
+    } catch (err) {
+      showToast('Failed to fetch enforcement orders', 'error');
+    }
+    setLoading(false);
+  }, [page, search, subject, showToast]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => {
+      setSearch(val);
+      setPage(1);
+    }, 400);
+  };
+
+  const getOutcomeBadgeClass = (outcome) => {
+    if (!outcome) return 'badge-glass';
+    if (outcome.includes('Granted')) return 'badge-green';
+    if (outcome === 'Dismissed') return 'badge-red';
+    if (outcome === 'Withdrawn') return 'badge-glass';
+    if (outcome === 'Adjourned') return 'badge-amber';
+    return 'badge-blue';
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title">Court Enforcement Orders</h1>
+        <p className="page-subtitle">
+          {total.toLocaleString()} enforcement orders from RTB court proceedings
+        </p>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="Search by name, court ref, PRTB number..."
+            className="search-input"
+            onChange={handleSearchChange}
+            style={{ flex: 1, minWidth: '240px' }}
+            id="enforcement-search-input"
+          />
+          <select
+            value={subject}
+            onChange={(e) => { setSubject(e.target.value); setPage(1); }}
+            className="search-input"
+            style={{ minWidth: '180px', cursor: 'pointer' }}
+            id="enforcement-subject-filter"
+          >
+            <option value="">All Subjects</option>
+            <option value="Rent Arrears">Rent Arrears</option>
+            <option value="Overholding">Overholding</option>
+            <option value="Deposit Retention">Deposit Retention</option>
+            <option value="Breach of Obligations">Breach of Obligations</option>
+            <option value="Invalid Notice of Termination">Invalid Notice</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Results */}
+      {loading ? (
+        <div className="loading-container">
+          <div className="spinner"></div>
+          <div className="loading-text">Loading enforcement orders...</div>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="glass-card-static" style={{ padding: '60px', textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚖️</div>
+          <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>No enforcement orders found</div>
+          <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
+            {search || subject ? 'Try adjusting your search filters' : 'Sync enforcement orders from the Admin panel to get started'}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="table-container">
+            {orders.map((order) => (
+              <div
+                key={order.id}
+                className="glass-card"
+                style={{ marginBottom: '8px', cursor: 'pointer' }}
+                onClick={() => setSelectedOrder(order)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)',
+                      marginBottom: '6px', lineHeight: 1.4,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {order.heading || 'Unknown parties'}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                      {order.court_ref_no && (
+                        <span style={{ fontFamily: "'SF Mono', monospace", fontSize: '11px', color: 'var(--accent-amber)' }}>
+                          {order.court_ref_no}
+                        </span>
+                      )}
+                      {order.prtb_no && (
+                        <span style={{ fontFamily: "'SF Mono', monospace", fontSize: '11px', color: 'var(--accent-blue)' }}>
+                          {order.prtb_no}
+                        </span>
+                      )}
+                      {order.order_date && (
+                        <span>
+                          {new Date(order.order_date).toLocaleDateString('en-IE', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
+                    {order.subject && <span className="badge badge-glass" style={{ fontSize: '11px' }}>{order.subject}</span>}
+                    {order.ai_outcome && <span className={`badge ${getOutcomeBadgeClass(order.ai_outcome)}`} style={{ fontSize: '11px' }}>{order.ai_outcome}</span>}
+                    {order.ai_compensation_amount > 0 && (
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent-green)' }}>
+                        €{parseFloat(order.ai_compensation_amount).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{
+              display: 'flex', justifyContent: 'center', alignItems: 'center',
+              gap: '12px', marginTop: 'var(--spacing-md)',
+            }}>
+              <button
+                className="btn"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                ← Prev
+              </button>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                className="btn"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Enforcement Order Detail Modal */}
+      {selectedOrder && (
+        <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedOrder(null)}>✕</button>
+            <div className="modal-body">
+              <div className="modal-field">
+                <div className="modal-field-label" style={{ fontSize: '10px' }}>Court Enforcement Order</div>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.3, marginBottom: '4px' }}>
+                  {selectedOrder.heading || 'Unknown'}
+                </h2>
+              </div>
+
+              <div className="modal-grid-2">
+                {selectedOrder.court_ref_no && (
+                  <div className="modal-field">
+                    <div className="modal-field-label">Court Ref No.</div>
+                    <div className="modal-field-value" style={{ fontFamily: "'SF Mono', monospace" }}>{selectedOrder.court_ref_no}</div>
+                  </div>
+                )}
+                {selectedOrder.prtb_no && (
+                  <div className="modal-field">
+                    <div className="modal-field-label">PRTB / DR No.</div>
+                    <div className="modal-field-value" style={{ fontFamily: "'SF Mono', monospace" }}>{selectedOrder.prtb_no}</div>
+                  </div>
+                )}
+              </div>
+
+              {selectedOrder.order_date && (
+                <div className="modal-field">
+                  <div className="modal-field-label">Order Date</div>
+                  <div className="modal-field-value">
+                    {new Date(selectedOrder.order_date).toLocaleDateString('en-IE', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                </div>
+              )}
+
+              <div className="modal-grid-2">
+                {selectedOrder.applicant_name && (
+                  <div className="modal-field">
+                    <div className="modal-field-label">Applicant</div>
+                    <div className="modal-field-value">{selectedOrder.applicant_name}</div>
+                  </div>
+                )}
+                {selectedOrder.respondent_name && (
+                  <div className="modal-field">
+                    <div className="modal-field-label">Respondent</div>
+                    <div className="modal-field-value">{selectedOrder.respondent_name}</div>
+                  </div>
+                )}
+              </div>
+
+              {selectedOrder.subject && (
+                <div className="modal-field">
+                  <div className="modal-field-label">Subject</div>
+                  <span className="badge badge-glass">{selectedOrder.subject}</span>
+                </div>
+              )}
+
+              {/* AI Analysis */}
+              {selectedOrder.ai_summary && (
+                <div className="glass-card-static" style={{ padding: '16px', margin: '16px 0', borderColor: 'rgba(99, 102, 241, 0.2)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                    🤖 AI Analysis
+                  </div>
+                  <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                    {selectedOrder.ai_summary}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {selectedOrder.ai_outcome && (
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Outcome</div>
+                        <span className={`badge ${getOutcomeBadgeClass(selectedOrder.ai_outcome)}`}>
+                          {selectedOrder.ai_outcome}
+                        </span>
+                      </div>
+                    )}
+                    {selectedOrder.ai_dispute_type && (
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Type</div>
+                        <span className="badge badge-glass">{selectedOrder.ai_dispute_type}</span>
+                      </div>
+                    )}
+                    {selectedOrder.ai_compensation_amount > 0 ? (
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Amount Ordered</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-green)' }}>
+                          €{parseFloat(selectedOrder.ai_compensation_amount).toLocaleString()}
+                        </div>
+                      </div>
+                    ) : selectedOrder.ai_compensation_amount === null && selectedOrder.ai_processed_at ? (
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Amount Ordered</div>
+                        <span className="badge badge-amber">Refer to Order</span>
+                      </div>
+                    ) : null}
+                    {(selectedOrder.ai_cost_order > 0) && (
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Cost Order</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent-amber)' }}>
+                          €{parseFloat(selectedOrder.ai_cost_order).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {selectedOrder.ai_property_address && (
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Property</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>📍 {selectedOrder.ai_property_address}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedOrder.ai_summary && (
+                <div style={{
+                  fontSize: '11px', color: 'var(--text-tertiary)', lineHeight: 1.5,
+                  padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)',
+                  borderRadius: 'var(--radius-sm)', marginBottom: '12px', opacity: 0.8,
+                }}>
+                  ⚠️ This summary is AI-generated and may contain errors. Verify amounts by checking the linked PDF document.
+                </div>
+              )}
+
+              {selectedOrder.pdf_url && (
+                <div className="modal-field">
+                  <div className="modal-field-label">Document</div>
+                  <div className="pdf-links">
+                    <a href={selectedOrder.pdf_url} target="_blank" rel="noopener noreferrer" className="pdf-link">
+                      📄 {selectedOrder.pdf_label || 'View Court Order PDF'}
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function ScraperView({ showToast, onComplete }) {
   const [scrapeStatus, setScrapeStatus] = useState(null);
   const [loading, setLoading] = useState(true);

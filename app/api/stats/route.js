@@ -146,6 +146,37 @@ export async function GET() {
             console.warn('AHB matching failed:', ahbErr.message);
         }
 
+        // Enforcement order counts
+        const { count: totalEnforcementOrders } = await supabase
+            .from('enforcement_orders')
+            .select('*', { count: 'exact', head: true });
+
+        const { count: enforcementAiProcessed } = await supabase
+            .from('enforcement_orders')
+            .select('*', { count: 'exact', head: true })
+            .not('ai_processed_at', 'is', null);
+
+        // Enforcement orders by subject
+        const { data: enforcementBySubject } = await supabase
+            .from('enforcement_orders')
+            .select('subject')
+            .not('subject', 'is', null);
+
+        const subjectCounts = {};
+        (enforcementBySubject || []).forEach(e => {
+            const s = e.subject || 'Unknown';
+            subjectCounts[s] = (subjectCounts[s] || 0) + 1;
+        });
+
+        // Latest enforcement scrape job
+        const { data: latestEnforcementJob } = await supabase
+            .from('scrape_jobs')
+            .select('*')
+            .eq('source_type', 'enforcement')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
         return Response.json({
             total_disputes: totalDisputes || 0,
             total_parties: totalParties || 0,
@@ -162,6 +193,12 @@ export async function GET() {
                 private_count: privateLandlordCount,
                 public_disputes: publicLandlordDisputes,
                 private_disputes: privateLandlordDisputes,
+            },
+            enforcement: {
+                total: totalEnforcementOrders || 0,
+                ai_processed: enforcementAiProcessed || 0,
+                by_subject: subjectCounts,
+                latest_job: latestEnforcementJob || null,
             },
         });
     } catch (error) {

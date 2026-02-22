@@ -74,9 +74,39 @@ export async function GET(request, { params }) {
         }
         const disputes = Array.from(caseMap.values());
 
+        // Get their enforcement orders through the join table
+        const { data: eoLinks } = await supabase
+            .from('enforcement_parties')
+            .select(`
+                role,
+                enforcement_orders (
+                    id,
+                    heading,
+                    court_ref_no,
+                    prtb_no,
+                    order_date,
+                    subject,
+                    pdf_url,
+                    pdf_label,
+                    applicant_name,
+                    respondent_name,
+                    ai_summary,
+                    ai_outcome,
+                    ai_compensation_amount
+                )
+            `)
+            .eq('party_id', id)
+            .order('enforcement_orders(order_date)', { ascending: false });
+
+        const enforcement_orders = (eoLinks || []).map(link => ({
+            ...link.enforcement_orders,
+            party_role: link.role,
+        }));
+
         return Response.json({
             party,
             disputes,
+            enforcement_orders,
         });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });

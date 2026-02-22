@@ -37,6 +37,13 @@ export async function GET(request, { params }) {
             .eq('party_id', id)
             .order('disputes(dispute_date)', { ascending: false });
 
+        // Get their enforcement orders
+        const { data: eoLinks } = await supabase
+            .from('enforcement_parties')
+            .select('role, enforcement_orders(court_ref_no, heading, order_date, subject, ai_outcome, ai_summary, ai_compensation_amount)')
+            .eq('party_id', id)
+            .order('enforcement_orders(order_date)', { ascending: false });
+
         const responseTime = Date.now() - start;
         await logApiUsage(user.id, '/api/v1/parties/' + id, 'GET', 200, responseTime);
 
@@ -49,6 +56,7 @@ export async function GET(request, { params }) {
                 as_applicant: party.total_as_applicant,
                 as_respondent: party.total_as_respondent,
             },
+            enforcement_orders: party.total_enforcement_orders || 0,
             awards: {
                 for: parseFloat(party.net_awards_for || 0),
                 against: parseFloat(party.net_awards_against || 0),
@@ -64,6 +72,18 @@ export async function GET(request, { params }) {
                     dispute_type: link.disputes.ai_dispute_type,
                     compensation_amount: link.disputes.ai_compensation_amount,
                     summary: link.disputes.ai_summary,
+                } : {}),
+            })),
+            enforcement_history: (eoLinks || []).map(link => ({
+                role: link.role,
+                ...(link.enforcement_orders ? {
+                    court_ref_no: link.enforcement_orders.court_ref_no,
+                    heading: link.enforcement_orders.heading,
+                    date: link.enforcement_orders.order_date,
+                    subject: link.enforcement_orders.subject,
+                    outcome: link.enforcement_orders.ai_outcome,
+                    summary: link.enforcement_orders.ai_summary,
+                    compensation_amount: link.enforcement_orders.ai_compensation_amount,
                 } : {}),
             })),
         });
