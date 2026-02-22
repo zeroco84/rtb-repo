@@ -271,21 +271,6 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
           <div className="stat-change">All scraped records</div>
         </div>
         <div className="glass-card stat-card">
-          <div className="stat-label">Parties Tracked</div>
-          <div className="stat-value green">{(stats.total_parties || 0).toLocaleString()}</div>
-          <div className="stat-change">Unique individuals/entities</div>
-        </div>
-        <div className="glass-card stat-card">
-          <div className="stat-label">Repeat Offenders</div>
-          <div className="stat-value amber">{(stats.repeat_offenders || 0).toLocaleString()}</div>
-          <div className="stat-change">3+ disputes</div>
-        </div>
-        <div className="glass-card stat-card">
-          <div className="stat-label">AI Processed</div>
-          <div className="stat-value purple">{(stats.ai_processed || 0).toLocaleString()}</div>
-          <div className="stat-change">Enhanced records</div>
-        </div>
-        <div className="glass-card stat-card">
           <div className="stat-label">💰 Awarded to Landlords</div>
           <div className="stat-value green">€{(stats.total_awards_to_landlords || 0).toLocaleString()}</div>
           <div className="stat-change">Upheld cases</div>
@@ -295,7 +280,124 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
           <div className="stat-value amber">€{(stats.total_awards_to_tenants || 0).toLocaleString()}</div>
           <div className="stat-change">Upheld cases</div>
         </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">Dispute Parties</div>
+          <div className="stat-value green">{(stats.total_parties || 0).toLocaleString()}</div>
+          <div className="stat-change">Unique individuals/entities</div>
+        </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">AI Processed</div>
+          <div className="stat-value purple">{(stats.ai_processed || 0).toLocaleString()}</div>
+          <div className="stat-change">Enhanced records</div>
+        </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">Multi-Dispute Entities</div>
+          <div className="stat-value amber">{(stats.repeat_offenders || 0).toLocaleString()}</div>
+          <div className="stat-change">3+ disputes</div>
+        </div>
       </div>
+
+      {/* Public vs Private Landlord Bar */}
+      {stats.landlord_type && (stats.landlord_type.public_count + stats.landlord_type.private_count) > 0 && (() => {
+        const lt = stats.landlord_type;
+        const totalEntities = lt.public_count + lt.private_count;
+        const totalDisputes = lt.public_disputes + lt.private_disputes;
+        const publicEntityPct = totalEntities > 0 ? ((lt.public_count / totalEntities) * 100).toFixed(1) : 0;
+        const privateEntityPct = totalEntities > 0 ? ((lt.private_count / totalEntities) * 100).toFixed(1) : 0;
+        const publicDisputePct = totalDisputes > 0 ? ((lt.public_disputes / totalDisputes) * 100).toFixed(1) : 0;
+        const privateDisputePct = totalDisputes > 0 ? ((lt.private_disputes / totalDisputes) * 100).toFixed(1) : 0;
+
+        return (
+          <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)', marginBottom: 'var(--spacing-xl)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  🏠 Public vs Private Landlords
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                  Based on the top 25 landlords by dispute count — matched against the AHB Register
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, #6366f1, #818cf8)', display: 'inline-block' }}></span>
+                  Public (AHB)
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, #f59e0b, #fbbf24)', display: 'inline-block' }}></span>
+                  Private
+                </span>
+              </div>
+            </div>
+
+            {/* By Entities */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>
+                By Landlord Entity ({totalEntities.toLocaleString()} total)
+              </div>
+              <div style={{
+                display: 'flex', height: '36px', borderRadius: '10px', overflow: 'hidden',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)',
+              }}>
+                <div style={{
+                  width: publicEntityPct + '%', minWidth: publicEntityPct > 0 ? '40px' : '0',
+                  background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '11px', fontWeight: 700, color: 'white',
+                  transition: 'width 0.8s ease',
+                }}>
+                  {publicEntityPct}%
+                </div>
+                <div style={{
+                  flex: 1, background: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.7)',
+                  transition: 'width 0.8s ease',
+                }}>
+                  {privateEntityPct}%
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                <span>{lt.public_count.toLocaleString()} AHB landlords</span>
+                <span>{lt.private_count.toLocaleString()} private landlords</span>
+              </div>
+            </div>
+
+            {/* By Disputes */}
+            <div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>
+                By Dispute Volume ({totalDisputes.toLocaleString()} total)
+              </div>
+              <div style={{
+                display: 'flex', height: '36px', borderRadius: '10px', overflow: 'hidden',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)',
+              }}>
+                <div style={{
+                  width: publicDisputePct + '%', minWidth: publicDisputePct > 0 ? '40px' : '0',
+                  background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '11px', fontWeight: 700, color: 'white',
+                  transition: 'width 0.8s ease',
+                }}>
+                  {publicDisputePct}%
+                </div>
+                <div style={{
+                  flex: 1, background: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.7)',
+                  transition: 'width 0.8s ease',
+                }}>
+                  {privateDisputePct}%
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                <span>{lt.public_disputes.toLocaleString()} disputes with AHBs</span>
+                <span>{lt.private_disputes.toLocaleString()} disputes with private</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Two column layout */}
       <div className="top-parties-grid">

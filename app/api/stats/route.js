@@ -89,6 +89,63 @@ export async function GET() {
             else if (d.applicant_role === 'Tenant') totalAwardsToTenants += amount;
         });
 
+        // Public vs Private landlord breakdown
+        let publicLandlordDisputes = 0;
+        let privateLandlordDisputes = 0;
+        let publicLandlordCount = 0;
+        let privateLandlordCount = 0;
+
+        try {
+            const fs = await import('fs');
+            const path = await import('path');
+            const ahbPath = path.join(process.cwd(), 'public', 'ahb-register.json');
+            const ahbRaw = fs.readFileSync(ahbPath, 'utf8');
+            const ahbNames = JSON.parse(ahbRaw);
+
+            const AHB_KEYWORDS = [
+                'housing', 'simon', 'respond', 'oaklee', 'tuath', 'cluid', 'novas',
+                'cooperative housing', 'focus housing', 'iveagh', 'fold housing', 'circle voluntary',
+                'sophia housing', 'apex housing', 'clanmil', 'cena', 'cabrhu', 'wheelchair',
+                'cabhr', 'cill dara', 'shelter', 'homeless', 'steer housing',
+            ];
+
+            function normalizeAhb(name) {
+                return (name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                    .replace(/\bclg\b/g, '').replace(/\blimited\b/g, '').replace(/\bltd\.?\b/g, '')
+                    .replace(/\bdac\b/g, '').replace(/\bplc\b/g, '').replace(/\buc\b/g, '')
+                    .replace(/\bco-operative\b/g, 'cooperative').replace(/\bco-op\b/g, 'cooperative')
+                    .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
+                    .replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+
+            const normalizedAhb = ahbNames.map(n => normalizeAhb(n));
+
+            // Get top 25 landlords by dispute count
+            const { data: topLandlordsList } = await supabase.from('parties')
+                .select('name, total_disputes').eq('party_type', 'Landlord').gt('total_disputes', 0)
+                .order('total_disputes', { ascending: false }).limit(25);
+            const allLandlords = topLandlordsList || [];
+
+            for (const landlord of allLandlords) {
+                const norm = normalizeAhb(landlord.name);
+                const ahbMatch = normalizedAhb.some(ahb => {
+                    if (ahb.length < 6 || norm.length < 6) return false;
+                    return norm.includes(ahb) || ahb.includes(norm);
+                });
+                const hasKeyword = AHB_KEYWORDS.some(kw => norm.includes(kw));
+
+                if (ahbMatch && hasKeyword) {
+                    publicLandlordCount++;
+                    publicLandlordDisputes += landlord.total_disputes || 0;
+                } else {
+                    privateLandlordCount++;
+                    privateLandlordDisputes += landlord.total_disputes || 0;
+                }
+            }
+        } catch (ahbErr) {
+            console.warn('AHB matching failed:', ahbErr.message);
+        }
+
         return Response.json({
             total_disputes: totalDisputes || 0,
             total_parties: totalParties || 0,
@@ -100,6 +157,12 @@ export async function GET() {
             disputes_by_year: yearCounts,
             total_awards_to_landlords: totalAwardsToLandlords,
             total_awards_to_tenants: totalAwardsToTenants,
+            landlord_type: {
+                public_count: publicLandlordCount,
+                private_count: privateLandlordCount,
+                public_disputes: publicLandlordDisputes,
+                private_disputes: privateLandlordDisputes,
+            },
         });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
