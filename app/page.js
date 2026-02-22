@@ -2502,11 +2502,7 @@ function EnforcementSyncView({ showToast }) {
         setRunning(false);
         return;
       }
-      if (data.resumed) {
-        showToast(`Resuming enforcement sync from page ${data.job.current_page + 1}...`, 'info');
-      } else {
-        showToast('Enforcement orders sync started!', 'info');
-      }
+      showToast('Enforcement orders sync started!', 'info');
       startPolling();
     } catch (err) {
       showToast('Failed to start enforcement sync', 'error');
