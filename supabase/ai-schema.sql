@@ -19,6 +19,7 @@ WHERE ai_processed_at IS NULL AND pdf_urls IS NOT NULL;
 ALTER TABLE parties ADD COLUMN IF NOT EXISTS net_awards_for DECIMAL(12,2) DEFAULT 0;
 ALTER TABLE parties ADD COLUMN IF NOT EXISTS net_awards_against DECIMAL(12,2) DEFAULT 0;
 ALTER TABLE parties ADD COLUMN IF NOT EXISTS net_awards DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE parties ADD COLUMN IF NOT EXISTS gross_awards_received DECIMAL(12,2) DEFAULT 0;
 
 -- Function to recompute net awards for all parties from AI-processed disputes
 CREATE OR REPLACE FUNCTION recompute_party_awards()
@@ -42,8 +43,16 @@ BEGIN
         AND dp.role = 'Respondent'
         AND d.ai_compensation_amount > 0
         AND d.ai_outcome IN ('Upheld', 'Partially Upheld')
+    ), 0),
+    gross_awards_received = COALESCE((
+      SELECT SUM(d.ai_compensation_amount)
+      FROM dispute_parties dp
+      JOIN disputes d ON d.id = dp.dispute_id
+      WHERE dp.party_id = p.id
+        AND dp.role = 'Applicant'
+        AND d.ai_compensation_amount > 0
     ), 0);
   
-  UPDATE parties SET net_awards = net_awards_against - net_awards_for;
+  UPDATE parties SET net_awards = net_awards_against - net_awards_for WHERE true;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

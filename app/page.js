@@ -1071,9 +1071,9 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
             <div className="podium-disputes">
               {podiumParties[1].total_disputes} disputes
             </div>
-            {parseFloat(podiumParties[1].net_awards || 0) !== 0 && (
-              <div className="podium-awards" style={{ color: parseFloat(podiumParties[1].net_awards) > 0 ? '#f87171' : '#34d399' }}>
-                {parseFloat(podiumParties[1].net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(podiumParties[1].net_awards)).toLocaleString()}
+            {parseFloat(podiumParties[1].gross_awards_received || 0) > 0 && (
+              <div className="podium-awards" style={{ color: '#34d399' }}>
+                €{parseFloat(podiumParties[1].gross_awards_received).toLocaleString()}
               </div>
             )}
             <div className="podium-bar silver"></div>
@@ -1089,9 +1089,9 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
             <div className="podium-disputes">
               {podiumParties[0].total_disputes} disputes
             </div>
-            {parseFloat(podiumParties[0].net_awards || 0) !== 0 && (
-              <div className="podium-awards" style={{ color: parseFloat(podiumParties[0].net_awards) > 0 ? '#f87171' : '#34d399' }}>
-                {parseFloat(podiumParties[0].net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(podiumParties[0].net_awards)).toLocaleString()}
+            {parseFloat(podiumParties[0].gross_awards_received || 0) > 0 && (
+              <div className="podium-awards" style={{ color: '#34d399' }}>
+                €{parseFloat(podiumParties[0].gross_awards_received).toLocaleString()}
               </div>
             )}
             <div className="podium-bar gold"></div>
@@ -1107,9 +1107,9 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
             <div className="podium-disputes">
               {podiumParties[2].total_disputes} disputes
             </div>
-            {parseFloat(podiumParties[2].net_awards || 0) !== 0 && (
-              <div className="podium-awards" style={{ color: parseFloat(podiumParties[2].net_awards) > 0 ? '#f87171' : '#34d399' }}>
-                {parseFloat(podiumParties[2].net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(podiumParties[2].net_awards)).toLocaleString()}
+            {parseFloat(podiumParties[2].gross_awards_received || 0) > 0 && (
+              <div className="podium-awards" style={{ color: '#34d399' }}>
+                €{parseFloat(podiumParties[2].gross_awards_received).toLocaleString()}
               </div>
             )}
             <div className="podium-bar bronze"></div>
@@ -1168,8 +1168,8 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
         fontSize: '12px', color: 'var(--text-tertiary)', margin: '0 0 12px 4px',
         lineHeight: 1.5, maxWidth: '700px'
       }}>
-        💡 <strong style={{ color: 'var(--text-secondary)' }}>Net Awards</strong> = total compensation awarded <em>against</em> a party minus total awarded <em>for</em> them.
-        Positive (red) means they owe; negative (green) means they are owed money. Only AI-analysed disputes are included. These amounts reflect awards, not collections.
+        💡 <strong style={{ color: 'var(--text-secondary)' }}>Gross Awards</strong> = total compensation awarded <em>to</em> a party across all their cases.
+        Only AI-analysed disputes are included. These amounts reflect awards, not collections.
       </p>
 
       {/* Table */}
@@ -1195,7 +1195,7 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
                 <th>Name</th>
                 <th>Type</th>
                 <th>Total Disputes</th>
-                <th>Net Awards</th>
+                <th>Gross Awards</th>
                 <th className="col-applicant">As Applicant</th>
                 <th className="col-respondent">As Respondent</th>
               </tr>
@@ -1242,12 +1242,12 @@ function LeagueTableView({ showToast, navigateToPartyId, onNavigated, onDisputeC
                       </span>
                     </td>
                     <td>
-                      {parseFloat(p.net_awards || 0) !== 0 ? (
+                      {parseFloat(p.gross_awards_received || 0) > 0 ? (
                         <span style={{
-                          color: parseFloat(p.net_awards) > 0 ? 'var(--accent-red)' : 'var(--accent-green)',
+                          color: 'var(--accent-green)',
                           fontWeight: 700
                         }}>
-                          {parseFloat(p.net_awards) > 0 ? '' : '-'}€{Math.abs(parseFloat(p.net_awards)).toLocaleString()}
+                          €{parseFloat(p.gross_awards_received).toLocaleString()}
                         </span>
                       ) : (
                         <span className="muted">—</span>
@@ -1338,7 +1338,7 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
           </div>
         </div>
 
-        {/* Net Awards breakdown */}
+        {/* Gross Awards breakdown */}
         {(parseFloat(party.net_awards_for || 0) > 0 || parseFloat(party.net_awards_against || 0) > 0) && (
           <div className="modal-grid-3">
             <div className="glass-card stat-card" style={{ padding: '12px' }}>
@@ -1354,9 +1354,9 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
               </div>
             </div>
             <div className="glass-card stat-card" style={{ padding: '12px' }}>
-              <div className="stat-label" style={{ fontSize: '10px' }}>📊 Net Awards</div>
-              <div className="stat-value" style={{ fontSize: '18px', color: parseFloat(party.net_awards || 0) > 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>
-                €{parseFloat(party.net_awards || 0).toLocaleString()}
+              <div className="stat-label" style={{ fontSize: '10px' }}>📊 Gross Awards</div>
+              <div className="stat-value" style={{ fontSize: '18px', color: 'var(--accent-green)' }}>
+                €{parseFloat(party.gross_awards_received || 0).toLocaleString()}
               </div>
             </div>
           </div>
