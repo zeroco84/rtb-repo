@@ -72,6 +72,23 @@ export async function GET() {
             }
         });
 
+        // Total awards by role type
+        const { data: awardsByRole } = await supabase
+            .from('disputes')
+            .select('applicant_role, respondent_role, ai_compensation_amount, ai_outcome')
+            .not('ai_processed_at', 'is', null)
+            .gt('ai_compensation_amount', 0)
+            .in('ai_outcome', ['Upheld', 'Partially Upheld']);
+
+        let totalAwardsToLandlords = 0;
+        let totalAwardsToTenants = 0;
+        (awardsByRole || []).forEach(d => {
+            const amount = parseFloat(d.ai_compensation_amount) || 0;
+            // In upheld cases, the applicant wins the award
+            if (d.applicant_role === 'Landlord') totalAwardsToLandlords += amount;
+            else if (d.applicant_role === 'Tenant') totalAwardsToTenants += amount;
+        });
+
         return Response.json({
             total_disputes: totalDisputes || 0,
             total_parties: totalParties || 0,
@@ -81,6 +98,8 @@ export async function GET() {
             top_tenants: topTenants || [],
             latest_job: latestJob,
             disputes_by_year: yearCounts,
+            total_awards_to_landlords: totalAwardsToLandlords,
+            total_awards_to_tenants: totalAwardsToTenants,
         });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
