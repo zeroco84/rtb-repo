@@ -234,14 +234,35 @@ async function updatePartyCounts(supabase, partyId) {
         })
         .eq('id', partyId);
 }
+const PAGES_PER_CHUNK = 20; // ~1 minute per chunk at 3s/page — enforcement has ~70 pages
 
-async function runEnforcementScrape(supabase, jobId) {
+async function runEnforcementScrape(supabase, jobId, resumeFromPage = 1) {
     let totalRecords = 0;
     let newRecords = 0;
     let updatedRecords = 0;
 
+    // Fetch existing counts if resuming from a previous chunk
+    if (resumeFromPage > 1) {
+        const { data: existingJob } = await supabase
+            .from('scrape_jobs')
+            .select('total_records, new_records, updated_records')
+            .eq('id', jobId)
+            .single();
+        if (existingJob) {
+            totalRecords = existingJob.total_records || 0;
+            newRecords = existingJob.new_records || 0;
+            updatedRecords = existingJob.updated_records || 0;
+        }
+    }
+
+    const endPage = resumeFromPage + PAGES_PER_CHUNK - 1;
+    console.log(`[EnforcementScrape] Processing chunk: pages ${resumeFromPage} to ${endPage}`);
+
     try {
-        for await (const batch of scrapeAllEnforcementOrders()) {
+        let lastPageProcessed = resumeFromPage;
+        let totalPages = null;
+
+        for await (const batch of scrapeAllEnforcementOrders({ startPage: resumeFromPage, endPage })) {
             // Check if cancelled
             const { data: jobCheck } = await supabase
                 .from('scrape_jobs')
@@ -250,9 +271,12 @@ async function runEnforcementScrape(supabase, jobId) {
                 .single();
 
             if (jobCheck?.status === 'cancelled') {
-                console.log(`[EnforcementScrape] Job ${jobId} was cancelled`);
+                console.log(`[EnforcementScrape] Job ${jobId} was cancelled by admin`);
                 return;
             }
+
+            totalPages = batch.totalPages;
+            lastPageProcessed = batch.page;
 
             // Update progress
             await supabase
@@ -370,7 +394,7 @@ async function runEnforcementScrape(supabase, jobId) {
                 }
             }
 
-            // Update counts
+            // Update counts on job
             await supabase
                 .from('scrape_jobs')
                 .update({
@@ -381,7 +405,19 @@ async function runEnforcementScrape(supabase, jobId) {
                 .eq('id', jobId);
         }
 
-        // Mark job complete
+        // Check if we've finished all pages or need another chunk
+        if (totalPages && lastPageProcessed < totalPages) {
+            const nextPage = lastPageProcessed + 1;
+            console.log(`[EnforcementScrape] Chunk done (page ${lastPageProcessed}/${totalPages}). Chaining next chunk from page ${nextPage}...`);
+
+            // Delay between chunks to be respectful
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Recurse into next chunk
+            return runEnforcementScrape(supabase, jobId, nextPage);
+        }
+
+        // All pages complete — mark job done
         await supabase
             .from('scrape_jobs')
             .update({

@@ -2738,13 +2738,19 @@ function EnforcementOrdersView({ showToast }) {
         </div>
       ) : (
         <>
-          <div className="table-container">
-            {orders.map((order) => (
+          <div className="glass-card-static" style={{ padding: 0, overflow: 'hidden' }}>
+            {orders.map((order, idx) => (
               <div
                 key={order.id}
-                className="glass-card"
-                style={{ marginBottom: '8px', cursor: 'pointer' }}
+                style={{
+                  padding: '14px 20px',
+                  cursor: 'pointer',
+                  borderBottom: idx < orders.length - 1 ? '1px solid var(--glass-border)' : 'none',
+                  transition: 'background 0.15s ease',
+                }}
                 onClick={() => setSelectedOrder(order)}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
