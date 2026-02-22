@@ -14,8 +14,8 @@ import { processUnanalysedDisputes } from '@/lib/openai-service';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-const BATCH_SIZE = 10;
-const MAX_RUNTIME_MS = 4 * 60 * 1000; // 4 minutes (leave 1 min buffer)
+const BATCH_SIZE = 5;
+const MAX_RUNTIME_MS = 4 * 60 * 1000; // 4 minutes
 
 export async function GET(request) {
     const authHeader = request.headers.get('Authorization');
@@ -34,57 +34,70 @@ export async function GET(request) {
     const startTime = Date.now();
     let totalProcessed = 0;
     let totalFailed = 0;
+    let totalSkipped = 0;
     let batches = 0;
+    let lastError = null;
+    let consecutiveEmpty = 0;
 
     try {
         while (Date.now() - startTime < MAX_RUNTIME_MS) {
-            // Check remaining
-            const { count: remaining } = await supabase
-                .from('disputes')
-                .select('*', { count: 'exact', head: true })
-                .is('ai_processed_at', null)
-                .not('pdf_urls', 'is', null);
-
-            if (!remaining || remaining === 0) {
-                // All done — recompute awards
-                try { await supabase.rpc('recompute_party_awards'); } catch (e) { }
-                return Response.json({
-                    message: 'All disputes processed!',
-                    total_processed: totalProcessed,
-                    total_failed: totalFailed,
-                    batches,
-                    remaining: 0,
-                    elapsed_ms: Date.now() - startTime,
-                });
+            // Process a batch
+            let result;
+            try {
+                result = await processUnanalysedDisputes(BATCH_SIZE);
+            } catch (batchErr) {
+                lastError = batchErr.message;
+                console.error('[AI Batch] processUnanalysedDisputes threw:', batchErr.message);
+                break;
             }
 
-            // Process a batch
-            const result = await processUnanalysedDisputes(BATCH_SIZE);
-            totalProcessed += result.processed;
-            totalFailed += result.failed;
             batches++;
+            totalProcessed += (result.processed || 0);
+            totalFailed += (result.failed || 0);
+            totalSkipped += (result.skipped || 0);
 
-            console.log(`[AI Batch] Batch ${batches}: ${result.processed} processed, ${result.failed} failed (${remaining - result.processed} remaining)`);
+            console.log(`[AI Batch] Batch ${batches}: processed=${result.processed} failed=${result.failed} skipped=${result.skipped} total=${result.total} error=${result.error || 'none'}`);
 
-            // Brief pause between batches
-            await new Promise(r => setTimeout(r, 1000));
+            // If the function returned an error message (e.g., no API key)
+            if (result.error) {
+                lastError = result.error;
+                break;
+            }
+
+            // If no disputes were found at all, we're done
+            if ((result.total || 0) === 0) {
+                consecutiveEmpty++;
+                if (consecutiveEmpty >= 2) break;
+            } else {
+                consecutiveEmpty = 0;
+            }
+
+            // If a batch processes 0 but has items, something is wrong
+            if ((result.total || 0) > 0 && (result.processed || 0) === 0 && (result.failed || 0) === 0) {
+                // All skipped — might be records with empty pdf arrays
+                totalSkipped += (result.total || 0);
+            }
+
+            // Brief pause between batches to avoid hammering APIs
+            await new Promise(r => setTimeout(r, 2000));
         }
     } catch (err) {
-        console.error('[AI Batch] Error:', err.message);
+        lastError = err.message;
+        console.error('[AI Batch] Loop error:', err.message);
     }
 
     // Recompute awards after each run
     try { await supabase.rpc('recompute_party_awards'); } catch (e) { }
 
-    // Check if more remain
-    const { count: stillRemaining } = await supabase
+    // Check remaining
+    const { count: remaining } = await supabase
         .from('disputes')
         .select('*', { count: 'exact', head: true })
         .is('ai_processed_at', null)
         .not('pdf_urls', 'is', null);
 
-    // Self-retrigger if more remain (fire and forget)
-    if (stillRemaining > 0) {
+    // Self-retrigger if more remain and we actually processed some
+    if (remaining > 0 && totalProcessed > 0 && !lastError) {
         const selfUrl = url.origin + '/api/ai/batch';
         fetch(selfUrl, {
             headers: { 'Authorization': `Bearer ${cronSecret}` },
@@ -92,11 +105,15 @@ export async function GET(request) {
     }
 
     return Response.json({
-        message: stillRemaining > 0 ? 'Batch complete, retriggered' : 'All done!',
+        message: remaining > 0
+            ? (totalProcessed > 0 ? 'Batch complete, retriggered' : 'Batch complete, NOT retriggered (0 processed)')
+            : 'All done!',
         total_processed: totalProcessed,
         total_failed: totalFailed,
+        total_skipped: totalSkipped,
         batches,
-        remaining: stillRemaining || 0,
+        remaining: remaining || 0,
         elapsed_ms: Date.now() - startTime,
+        last_error: lastError,
     });
 }
