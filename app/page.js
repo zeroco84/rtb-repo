@@ -3,10 +3,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAuth = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+let _supabaseAuth = null;
+function getSupabaseAuth() {
+  if (!_supabaseAuth) {
+    _supabaseAuth = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+  }
+  return _supabaseAuth;
+}
 
 // ============================================
 // MAIN APP COMPONENT
@@ -27,8 +33,9 @@ export default function Home() {
 
   // Check auth session on mount
   useEffect(() => {
+    const sb = getSupabaseAuth();
     const checkSession = async () => {
-      const { data: { session } } = await supabaseAuth.auth.getSession();
+      const { data: { session } } = await sb.auth.getSession();
       if (session?.user) {
         setUser(session.user);
         setAccessToken(session.access_token);
@@ -38,7 +45,7 @@ export default function Home() {
     checkSession();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
         setAccessToken(session.access_token);
@@ -109,7 +116,7 @@ export default function Home() {
   };
 
   const handleSignOut = async () => {
-    await supabaseAuth.auth.signOut();
+    await getSupabaseAuth().auth.signOut();
     setUser(null);
     setAccessToken(null);
     setIsAdmin(false);
@@ -3805,7 +3812,7 @@ function UserMenu({ user, onSignOut, showToast }) {
     }
     setSaving(true);
     try {
-      const { error } = await supabaseAuth.auth.updateUser({ password: newPassword });
+      const { error } = await getSupabaseAuth().auth.updateUser({ password: newPassword });
       if (error) {
         showToast(error.message, 'error');
       } else {
