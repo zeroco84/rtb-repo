@@ -1361,6 +1361,52 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
             </div>
           </div>
         )}
+        {/* Success Rate */}
+        {detail && (() => {
+          const applicantCases = disputes.filter(d => d.party_role === 'Applicant' && d.ai_outcome);
+          const successCases = applicantCases.filter(d => d.ai_outcome === 'Upheld' || d.ai_outcome === 'Partially Upheld');
+          const totalWithOutcome = applicantCases.length;
+          const successCount = successCases.length;
+          const rate = totalWithOutcome > 0 ? Math.round((successCount / totalWithOutcome) * 100) : null;
+
+          if (rate === null) return null;
+
+          const rateColor = rate >= 70 ? 'var(--accent-green)' : rate >= 40 ? 'var(--accent-amber)' : 'var(--accent-red)';
+
+          return (
+            <div className="glass-card stat-card" style={{ padding: '16px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div className="stat-label" style={{ fontSize: '10px', margin: 0 }}>🎯 Success Rate (as Applicant)</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                  {successCount} / {totalWithOutcome} cases
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ fontSize: '32px', fontWeight: 800, color: rateColor, lineHeight: 1 }}>
+                  {rate}%
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    height: '8px', borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${rate}%`, height: '100%', borderRadius: '4px',
+                      background: rateColor,
+                      transition: 'width 0.6s ease',
+                    }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                    <span>✅ Upheld: {applicantCases.filter(d => d.ai_outcome === 'Upheld').length}</span>
+                    <span>⚖️ Partial: {applicantCases.filter(d => d.ai_outcome === 'Partially Upheld').length}</span>
+                    <span>❌ Dismissed: {applicantCases.filter(d => d.ai_outcome === 'Dismissed').length}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="modal-field-label" style={{ marginBottom: '12px' }}>Case History</div>
 

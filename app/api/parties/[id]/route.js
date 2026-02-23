@@ -41,6 +41,8 @@ export async function GET(request, { params }) {
           property_address,
           pdf_urls,
           ai_summary,
+          ai_outcome,
+          ai_compensation_amount,
           dispute_value,
           awarded_amount
         )
