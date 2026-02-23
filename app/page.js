@@ -283,12 +283,12 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
         <div className="glass-card stat-card">
           <div className="stat-label">💰 Awarded to Landlords</div>
           <div className="stat-value green">€{(stats.total_awards_to_landlords || 0).toLocaleString()}</div>
-          <div className="stat-change">Upheld cases</div>
+          <div className="stat-change">Gross awards (all cases)</div>
         </div>
         <div className="glass-card stat-card">
           <div className="stat-label">💰 Awarded to Tenants</div>
           <div className="stat-value amber">€{(stats.total_awards_to_tenants || 0).toLocaleString()}</div>
-          <div className="stat-change">Upheld cases</div>
+          <div className="stat-change">Gross awards (all cases)</div>
         </div>
         <div className="glass-card stat-card">
           <div className="stat-label">Dispute Parties</div>

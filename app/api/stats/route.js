@@ -57,36 +57,44 @@ export async function GET() {
             .limit(1)
             .single();
 
-        // Disputes per year
-        const { data: disputesByYear } = await supabase
-            .from('disputes')
-            .select('dispute_date')
-            .not('dispute_date', 'is', null)
-            .order('dispute_date', { ascending: true });
-
+        // Disputes per year — use individual count queries to avoid 1000-row limit
+        const currentYear = new Date().getFullYear();
+        const startYear = 2004; // RTB started around then
         const yearCounts = {};
-        (disputesByYear || []).forEach(d => {
-            if (d.dispute_date) {
-                const year = new Date(d.dispute_date).getFullYear();
-                yearCounts[year] = (yearCounts[year] || 0) + 1;
-            }
-        });
+        const yearQueries = [];
+        for (let y = startYear; y <= currentYear; y++) {
+            yearQueries.push(
+                supabase
+                    .from('disputes')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('dispute_date', `${y}-01-01`)
+                    .lt('dispute_date', `${y + 1}-01-01`)
+                    .then(({ count }) => { if (count > 0) yearCounts[y] = count; })
+            );
+        }
+        await Promise.all(yearQueries);
 
-        // Total awards by role type
-        const { data: awardsByRole } = await supabase
-            .from('disputes')
-            .select('applicant_role, respondent_role, ai_compensation_amount, ai_outcome')
-            .not('ai_processed_at', 'is', null)
-            .gt('ai_compensation_amount', 0)
-            .in('ai_outcome', ['Upheld', 'Partially Upheld']);
+        // Total awards by party type — use pre-computed gross_awards_received from parties table
+        // This is more accurate than using applicant_role on disputes (which has many nulls)
+        const { data: landlordParties } = await supabase
+            .from('parties')
+            .select('gross_awards_received')
+            .eq('party_type', 'Landlord')
+            .gt('gross_awards_received', 0);
+
+        const { data: tenantParties } = await supabase
+            .from('parties')
+            .select('gross_awards_received')
+            .eq('party_type', 'Tenant')
+            .gt('gross_awards_received', 0);
 
         let totalAwardsToLandlords = 0;
         let totalAwardsToTenants = 0;
-        (awardsByRole || []).forEach(d => {
-            const amount = parseFloat(d.ai_compensation_amount) || 0;
-            // In upheld cases, the applicant wins the award
-            if (d.applicant_role === 'Landlord') totalAwardsToLandlords += amount;
-            else if (d.applicant_role === 'Tenant') totalAwardsToTenants += amount;
+        (landlordParties || []).forEach(p => {
+            totalAwardsToLandlords += parseFloat(p.gross_awards_received) || 0;
+        });
+        (tenantParties || []).forEach(p => {
+            totalAwardsToTenants += parseFloat(p.gross_awards_received) || 0;
         });
 
         // Landlord-initiated vs Tenant-initiated cases (case-insensitive)
