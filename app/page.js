@@ -1,6 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAuth = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 // ============================================
 // MAIN APP COMPONENT
@@ -13,6 +19,37 @@ export default function Home() {
   const [adminChecked, setAdminChecked] = useState(false);
   const [navigateToPartyId, setNavigateToPartyId] = useState(null);
   const [navigateToDisputeDrNo, setNavigateToDisputeDrNo] = useState(null);
+
+  // Auth state
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [accessToken, setAccessToken] = useState(null);
+
+  // Check auth session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabaseAuth.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        setAccessToken(session.access_token);
+      }
+      setAuthLoading(false);
+    };
+    checkSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        setAccessToken(session.access_token);
+      } else {
+        setUser(null);
+        setAccessToken(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Navigate to a party's profile (from dashboard)
   const openPartyProfile = (partyId) => {
@@ -28,9 +65,10 @@ export default function Home() {
 
   // Load stats and check admin status on mount
   useEffect(() => {
+    if (!user) return;
     fetchStats();
     checkAdmin();
-  }, []);
+  }, [user]);
 
   const fetchStats = async () => {
     try {
@@ -58,17 +96,39 @@ export default function Home() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleLogin = () => {
+  const handleAdminLogin = () => {
     setIsAdmin(true);
     showToast('Admin access granted', 'success');
   };
 
-  const handleLogout = async () => {
+  const handleAdminLogout = async () => {
     await fetch('/api/admin/login', { method: 'DELETE' });
     setIsAdmin(false);
     setActiveTab('dashboard');
-    showToast('Logged out', 'info');
+    showToast('Logged out of admin', 'info');
   };
+
+  const handleSignOut = async () => {
+    await supabaseAuth.auth.signOut();
+    setUser(null);
+    setAccessToken(null);
+    setIsAdmin(false);
+    setActiveTab('dashboard');
+  };
+
+  // Show loading spinner while checking auth
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen onLogin={(u) => { setUser(u); showToast('Welcome!', 'success'); }} />;
+  }
 
   return (
     <>
@@ -122,6 +182,23 @@ export default function Home() {
               </button>
             )}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+              {user?.email}
+            </span>
+            <button
+              onClick={handleSignOut}
+              style={{
+                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
+                color: 'var(--text-secondary)', fontSize: '12px', padding: '6px 12px',
+                borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => { e.target.style.background = 'rgba(239,68,68,0.1)'; e.target.style.color = '#f87171'; }}
+              onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.color = 'var(--text-secondary)'; }}
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -143,10 +220,11 @@ export default function Home() {
           <AdminGate
             isAdmin={isAdmin}
             adminChecked={adminChecked}
-            onLogin={handleLogin}
-            onLogout={handleLogout}
+            onLogin={handleAdminLogin}
+            onLogout={handleAdminLogout}
             showToast={showToast}
             onSyncComplete={fetchStats}
+            accessToken={accessToken}
           />
         )}
       </div>
@@ -228,7 +306,7 @@ export default function Home() {
                     body: JSON.stringify({ password: pw }),
                   }).then(r => {
                     if (r.ok) {
-                      handleLogin();
+                      handleAdminLogin();
                       setActiveTab('admin');
                     } else {
                       showToast('Invalid password', 'error');
@@ -1506,7 +1584,7 @@ function PartyDetailModal({ party, detail, onClose, onDisputeClick }) {
 // ============================================
 // ADMIN GATE
 // ============================================
-function AdminGate({ isAdmin, adminChecked, onLogin, onLogout, showToast, onSyncComplete }) {
+function AdminGate({ isAdmin, adminChecked, onLogin, onLogout, showToast, onSyncComplete, accessToken }) {
   if (!adminChecked) {
     return (
       <div className="loading-container">
@@ -1520,7 +1598,7 @@ function AdminGate({ isAdmin, adminChecked, onLogin, onLogout, showToast, onSync
     return <AdminLoginView onLogin={onLogin} showToast={showToast} />;
   }
 
-  return <AdminPanel onLogout={onLogout} showToast={showToast} onSyncComplete={onSyncComplete} />;
+  return <AdminPanel onLogout={onLogout} showToast={showToast} onSyncComplete={onSyncComplete} accessToken={accessToken} />;
 }
 
 // ============================================
@@ -1644,7 +1722,7 @@ function AdminLoginView({ onLogin, showToast }) {
 // ============================================
 // ADMIN PANEL (post-login)
 // ============================================
-function AdminPanel({ onLogout, showToast, onSyncComplete }) {
+function AdminPanel({ onLogout, showToast, onSyncComplete, accessToken }) {
   const [adminTab, setAdminTab] = useState('sync');
 
   return (
@@ -1671,7 +1749,7 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
       </div>
 
       {/* Admin Sub-tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: 'var(--spacing-md)' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: 'var(--spacing-md)', flexWrap: 'wrap' }}>
         <button
           className={`filter-chip ${adminTab === 'sync' ? 'active' : ''}`}
           onClick={() => setAdminTab('sync')}
@@ -1696,6 +1774,12 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
         >
           🔑 API Users
         </button>
+        <button
+          className={`filter-chip ${adminTab === 'users' ? 'active' : ''}`}
+          onClick={() => setAdminTab('users')}
+        >
+          👥 User Accounts
+        </button>
       </div>
 
       {adminTab === 'sync' && (
@@ -1714,6 +1798,9 @@ function AdminPanel({ onLogout, showToast, onSyncComplete }) {
       )}
       {adminTab === 'api-users' && (
         <ApiUsersView showToast={showToast} />
+      )}
+      {adminTab === 'users' && (
+        <UserManagementView showToast={showToast} accessToken={accessToken} />
       )}
     </>
   );
@@ -3359,6 +3446,342 @@ function ScraperView({ showToast, onComplete }) {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+// ============================================
+// LOGIN SCREEN (gates entire app)
+// ============================================
+function LoginScreen({ onLogin }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (authError) {
+        setError(authError.message);
+      } else {
+        onLogin(data.user);
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'center', alignItems: 'center',
+      minHeight: '100vh', background: 'var(--bg-primary)',
+      padding: '20px',
+    }}>
+      <div style={{ width: '100%', maxWidth: '420px' }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚖️</div>
+          <h1 style={{
+            fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)',
+            letterSpacing: '-0.02em', marginBottom: '8px',
+          }}>
+            Act Fairly
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
+            RTB Dispute Database — Sign in to continue
+          </p>
+        </div>
+
+        {/* Login Form */}
+        <div className="glass-card-static" style={{ padding: '32px' }}>
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block', fontSize: '12px', fontWeight: 600,
+                color: 'var(--text-secondary)', marginBottom: '8px',
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+              }}>
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="search-input"
+                placeholder="you@example.com"
+                autoComplete="email"
+                autoFocus
+                required
+                style={{ width: '100%', padding: '12px 16px', fontSize: '14px' }}
+                id="login-email-input"
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block', fontSize: '12px', fontWeight: 600,
+                color: 'var(--text-secondary)', marginBottom: '8px',
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+              }}>
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="search-input"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+                style={{ width: '100%', padding: '12px 16px', fontSize: '14px' }}
+                id="login-password-input"
+              />
+            </div>
+
+            {error && (
+              <div style={{
+                padding: '12px 16px', marginBottom: '20px', borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                color: '#f87171', fontSize: '13px',
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || !email || !password}
+              style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '14px' }}
+              id="login-submit-btn"
+            >
+              {loading ? (
+                <><div className="spinner spinner-sm" style={{ borderTopColor: 'white' }}></div> Signing in...</>
+              ) : (
+                '🔓 Sign In'
+              )}
+            </button>
+          </form>
+        </div>
+
+        <p style={{
+          textAlign: 'center', marginTop: '24px',
+          fontSize: '12px', color: 'var(--text-tertiary)',
+        }}>
+          Contact an administrator if you need access.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// USER MANAGEMENT VIEW (within Admin)
+// ============================================
+function UserManagementView({ showToast, accessToken }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('viewer');
+  const [creating, setCreating] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/users', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUsers(data.users || []);
+      } else {
+        showToast(data.error || 'Failed to fetch users', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to fetch users', 'error');
+    }
+    setLoading(false);
+  }, [accessToken, showToast]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const res = await fetch('/api/auth/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ email: newEmail, password: newPassword, role: newRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`User ${data.user.email} created`, 'success');
+        setNewEmail('');
+        setNewPassword('');
+        setNewRole('viewer');
+        fetchUsers();
+      } else {
+        showToast(data.error || 'Failed to create user', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to create user', 'error');
+    }
+    setCreating(false);
+  };
+
+  const deleteUser = async (userId, email) => {
+    if (!confirm(`Delete user ${email}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch('/api/auth/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        showToast(`User ${email} deleted`, 'success');
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to delete user', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to delete user', 'error');
+    }
+  };
+
+  return (
+    <>
+      {/* Create User Form */}
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-primary)' }}>
+          👤 Create New User
+        </h3>
+        <form onSubmit={createUser} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase' }}>Email</label>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="search-input"
+              placeholder="user@example.com"
+              required
+              style={{ width: '100%', padding: '10px 14px' }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: '160px' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase' }}>Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="search-input"
+              placeholder="Min 6 characters"
+              required
+              minLength={6}
+              style={{ width: '100%', padding: '10px 14px' }}
+            />
+          </div>
+          <div style={{ minWidth: '120px' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase' }}>Role</label>
+            <select
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value)}
+              className="search-input"
+              style={{ width: '100%', padding: '10px 14px', cursor: 'pointer' }}
+            >
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={creating || !newEmail || !newPassword}
+            style={{ padding: '10px 20px', whiteSpace: 'nowrap' }}
+          >
+            {creating ? 'Creating...' : '➕ Create User'}
+          </button>
+        </form>
+      </div>
+
+      {/* User List */}
+      <div className="glass-card-static table-container">
+        {loading ? (
+          <div className="loading-container">
+            <div className="spinner"></div>
+            <div className="loading-text">Loading users...</div>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">👥</div>
+            <div className="empty-state-title">No users found</div>
+            <div className="empty-state-text">Create a user above to get started</div>
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Last Sign In</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td style={{ fontWeight: 500 }}>{u.email}</td>
+                  <td>
+                    <span className={`badge ${u.role === 'admin' ? 'badge-purple' : 'badge-glass'}`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="muted">
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString('en-IE') : '—'}
+                  </td>
+                  <td className="muted">
+                    {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('en-IE') : 'Never'}
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => deleteUser(u.id, u.email)}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                        color: '#f87171', fontSize: '11px', padding: '4px 10px', borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </>
   );
 }
