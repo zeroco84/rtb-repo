@@ -14,7 +14,7 @@ import { processUnanalysedDisputes } from '@/lib/openai-service';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 15;
 const MAX_RUNTIME_MS = 4 * 60 * 1000; // 4 minutes
 
 export async function GET(request) {
@@ -79,7 +79,7 @@ export async function GET(request) {
             }
 
             // Brief pause between batches to avoid hammering APIs
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 500));
         }
     } catch (err) {
         lastError = err.message;
