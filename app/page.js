@@ -274,7 +274,7 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
       </div>
 
       {/* Stats Grid */}
-      <div className="stats-grid">
+      <div className="stats-grid" style={{ marginBottom: 'var(--spacing-md)' }}>
         <div className="glass-card stat-card">
           <div className="stat-label">Total Disputes</div>
           <div className="stat-value blue">{(stats.total_disputes || 0).toLocaleString()}</div>
@@ -304,6 +304,27 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
           <div className="stat-label">Multi-Dispute Entities</div>
           <div className="stat-value amber">{(stats.repeat_offenders || 0).toLocaleString()}</div>
           <div className="stat-change">3+ disputes</div>
+        </div>
+      </div>
+
+      {/* Secondary Stats Row */}
+      <div className="stats-grid">
+        <div className="glass-card stat-card">
+          <div className="stat-label">🏠 Landlord Initiated</div>
+          <div className="stat-value" style={{ color: '#f87171' }}>{(stats.landlord_initiated || 0).toLocaleString()}</div>
+          <div className="stat-change">{((stats.landlord_initiated / stats.total_disputes) * 100).toFixed(0)}% of all cases</div>
+        </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">👤 Tenant Initiated</div>
+          <div className="stat-value" style={{ color: '#fbbf24' }}>{(stats.tenant_initiated || 0).toLocaleString()}</div>
+          <div className="stat-change">{((stats.tenant_initiated / stats.total_disputes) * 100).toFixed(0)}% of all cases</div>
+        </div>
+        <div className="glass-card stat-card">
+          <div className="stat-label">✅ Cases Upheld</div>
+          <div className="stat-value green">{stats.cases_upheld_pct != null ? `${stats.cases_upheld_pct}%` : '—'}</div>
+          <div className="stat-change">
+            {(stats.cases_upheld_count || 0).toLocaleString()} of {(stats.cases_with_outcome || 0).toLocaleString()} analysed
+          </div>
         </div>
       </div>
 

@@ -89,6 +89,28 @@ export async function GET() {
             else if (d.applicant_role === 'Tenant') totalAwardsToTenants += amount;
         });
 
+        // Landlord-initiated vs Tenant-initiated cases (case-insensitive)
+        const { count: landlordInitiated } = await supabase
+            .from('disputes')
+            .select('*', { count: 'exact', head: true })
+            .ilike('applicant_role', 'landlord');
+
+        const { count: tenantInitiated } = await supabase
+            .from('disputes')
+            .select('*', { count: 'exact', head: true })
+            .ilike('applicant_role', 'tenant');
+
+        // Cases upheld percentage (from AI-processed disputes with outcomes)
+        const { count: totalWithOutcome } = await supabase
+            .from('disputes')
+            .select('*', { count: 'exact', head: true })
+            .not('ai_outcome', 'is', null);
+
+        const { count: upheldCount } = await supabase
+            .from('disputes')
+            .select('*', { count: 'exact', head: true })
+            .in('ai_outcome', ['Upheld', 'Partially Upheld']);
+
         // Public vs Private landlord breakdown
         let publicLandlordDisputes = 0;
         let privateLandlordDisputes = 0;
@@ -200,6 +222,11 @@ export async function GET() {
                 by_subject: subjectCounts,
                 latest_job: latestEnforcementJob || null,
             },
+            landlord_initiated: landlordInitiated || 0,
+            tenant_initiated: tenantInitiated || 0,
+            cases_upheld_pct: totalWithOutcome > 0 ? Math.round(((upheldCount || 0) / totalWithOutcome) * 100) : null,
+            cases_upheld_count: upheldCount || 0,
+            cases_with_outcome: totalWithOutcome || 0,
         });
     } catch (error) {
         return Response.json({ error: error.message }, { status: 500 });
