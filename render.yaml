@@ -2,7 +2,7 @@ services:
   - type: web
     name: rtb-disputes
     runtime: node
-    buildCommand: npm ci && npm run build
+    buildCommand: rm -rf node_modules && npm ci && npm run build
     startCommand: npm start
     plan: free
     envVars:
