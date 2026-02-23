@@ -182,23 +182,7 @@ export default function Home() {
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-              {user?.email}
-            </span>
-            <button
-              onClick={handleSignOut}
-              style={{
-                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
-                color: 'var(--text-secondary)', fontSize: '12px', padding: '6px 12px',
-                borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => { e.target.style.background = 'rgba(239,68,68,0.1)'; e.target.style.color = '#f87171'; }}
-              onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.color = 'var(--text-secondary)'; }}
-            >
-              Sign Out
-            </button>
-          </div>
+          <UserMenu user={user} onSignOut={handleSignOut} showToast={showToast} />
         </div>
       </nav>
 
@@ -3783,5 +3767,166 @@ function UserManagementView({ showToast, accessToken }) {
         )}
       </div>
     </>
+  );
+}
+
+// ============================================
+// USER MENU (nav bar dropdown)
+// ============================================
+function UserMenu({ user, onSignOut, showToast }) {
+  const [open, setOpen] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const menuRef = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+        setChangingPassword(false);
+      }
+    };
+    if (open) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+    if (newPassword.length < 6) {
+      showToast('Password must be at least 6 characters', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabaseAuth.auth.updateUser({ password: newPassword });
+      if (error) {
+        showToast(error.message, 'error');
+      } else {
+        showToast('Password updated successfully', 'success');
+        setNewPassword('');
+        setConfirmPassword('');
+        setChangingPassword(false);
+        setOpen(false);
+      }
+    } catch (err) {
+      showToast('Failed to update password', 'error');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div ref={menuRef} style={{ position: 'relative' }}>
+      <button
+        onClick={() => { setOpen(!open); setChangingPassword(false); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          background: open ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
+          border: '1px solid var(--glass-border)',
+          color: 'var(--text-secondary)', fontSize: '12px', padding: '6px 12px',
+          borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s ease',
+        }}
+        onMouseEnter={(e) => { if (!open) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={(e) => { if (!open) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+      >
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }}></span>
+        {user?.email}
+        <span style={{ fontSize: '10px', opacity: 0.5 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          minWidth: changingPassword ? '320px' : '200px',
+          background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+          borderRadius: '12px', overflow: 'hidden', zIndex: 1000,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        }}>
+          {!changingPassword ? (
+            <>
+              <button
+                onClick={() => setChangingPassword(true)}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '12px 16px',
+                  background: 'transparent', border: 'none', color: 'var(--text-secondary)',
+                  fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                  borderBottom: '1px solid var(--glass-border)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                🔑 Change Password
+              </button>
+              <button
+                onClick={onSignOut}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '12px 16px',
+                  background: 'transparent', border: 'none', color: '#f87171',
+                  fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                🚪 Sign Out
+              </button>
+            </>
+          ) : (
+            <form onSubmit={handleChangePassword} style={{ padding: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>
+                Change Password
+              </div>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="search-input"
+                placeholder="New password"
+                required
+                minLength={6}
+                autoFocus
+                style={{ width: '100%', padding: '10px 12px', marginBottom: '8px', fontSize: '13px' }}
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="search-input"
+                placeholder="Confirm password"
+                required
+                minLength={6}
+                style={{ width: '100%', padding: '10px 12px', marginBottom: '12px', fontSize: '13px' }}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setChangingPassword(false); setNewPassword(''); setConfirmPassword(''); }}
+                  style={{
+                    flex: 1, padding: '8px', background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid var(--glass-border)', borderRadius: '8px',
+                    color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={saving || !newPassword || !confirmPassword}
+                  style={{ flex: 1, padding: '8px', fontSize: '12px', justifyContent: 'center' }}
+                >
+                  {saving ? 'Saving...' : 'Update'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
