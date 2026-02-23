@@ -271,6 +271,9 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
         <p className="page-subtitle">
           Overview of the RTB dispute database
         </p>
+        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '8px', lineHeight: 1.6, maxWidth: '720px' }}>
+          Data are processed by artificial intelligence models and subject to frequent change. Where uncertainty exists about monetary amounts they are set at zero. Always refer to the accompanying PDF document to confirm individual case figures.
+        </p>
       </div>
 
       {/* Stats Grid */}
