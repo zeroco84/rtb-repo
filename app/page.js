@@ -2701,9 +2701,13 @@ function EnforcementOrdersView({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [subject, setSubject] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
+  const [sortBy, setSortBy] = useState('order_date');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const searchTimeout = useRef(null);
 
@@ -2713,11 +2717,13 @@ function EnforcementOrdersView({ showToast }) {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '25',
-        sort_by: 'order_date',
-        sort_order: 'desc',
+        sort_by: sortBy,
+        sort_order: sortOrder,
       });
       if (search) params.set('search', search);
       if (subject) params.set('subject', subject);
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
 
       const res = await fetch(`/api/enforcement-orders?${params}`);
       const data = await res.json();
@@ -2729,19 +2735,33 @@ function EnforcementOrdersView({ showToast }) {
       showToast('Failed to fetch enforcement orders', 'error');
     }
     setLoading(false);
-  }, [page, search, subject, showToast]);
+  }, [page, search, subject, dateFrom, dateTo, sortBy, sortOrder, showToast]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  const handleSearchChange = (e) => {
-    const val = e.target.value;
+  const handleSearch = (value) => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
-      setSearch(val);
+      setSearch(value);
       setPage(1);
     }, 400);
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortBy !== field) return <span style={{ opacity: 0.3 }}>↕</span>;
+    return <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>;
   };
 
   const getOutcomeBadgeClass = (outcome) => {
@@ -2758,26 +2778,27 @@ function EnforcementOrdersView({ showToast }) {
       <div className="page-header">
         <h1 className="page-title">Court Enforcement Orders</h1>
         <p className="page-subtitle">
-          {total.toLocaleString()} enforcement orders from RTB court proceedings
+          Search through {total.toLocaleString()} enforcement orders from RTB court proceedings
         </p>
       </div>
 
       {/* Search & Filters */}
-      <div className="glass-card-static" style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+      <div className="search-container">
+        <div className="search-bar">
+          <span className="search-icon">🔍</span>
           <input
             type="text"
-            placeholder="Search by name, court ref, PRTB number..."
             className="search-input"
-            onChange={handleSearchChange}
-            style={{ flex: 1, minWidth: '240px' }}
+            placeholder="Search by name, court ref, PRTB number..."
+            onChange={(e) => handleSearch(e.target.value)}
             id="enforcement-search-input"
           />
+        </div>
+        <div className="search-filters">
           <select
             value={subject}
             onChange={(e) => { setSubject(e.target.value); setPage(1); }}
-            className="search-input"
-            style={{ minWidth: '180px', cursor: 'pointer' }}
+            className="filter-select"
             id="enforcement-subject-filter"
           >
             <option value="">All Subjects</option>
@@ -2787,108 +2808,146 @@ function EnforcementOrdersView({ showToast }) {
             <option value="Breach of Obligations">Breach of Obligations</option>
             <option value="Invalid Notice of Termination">Invalid Notice</option>
           </select>
+          <input
+            type="date"
+            className="date-input"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+            placeholder="From date"
+            id="enforcement-date-from"
+          />
+          <input
+            type="date"
+            className="date-input"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+            placeholder="To date"
+            id="enforcement-date-to"
+          />
+          {(search || subject || dateFrom || dateTo) && (
+            <button
+              className="filter-chip"
+              onClick={() => {
+                setSearch('');
+                setSubject('');
+                setDateFrom('');
+                setDateTo('');
+                setPage(1);
+                const input = document.getElementById('enforcement-search-input');
+                if (input) input.value = '';
+              }}
+            >
+              ✕ Clear filters
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Results */}
-      {loading ? (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <div className="loading-text">Loading enforcement orders...</div>
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="glass-card-static" style={{ padding: '60px', textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚖️</div>
-          <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>No enforcement orders found</div>
-          <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
-            {search || subject ? 'Try adjusting your search filters' : 'Sync enforcement orders from the Admin panel to get started'}
+      {/* Table */}
+      <div className="glass-card-static table-container">
+        {loading ? (
+          <div className="loading-container">
+            <div className="spinner"></div>
+            <div className="loading-text">Loading enforcement orders...</div>
           </div>
-        </div>
-      ) : (
-        <>
-          <div className="glass-card-static" style={{ padding: 0, overflow: 'hidden' }}>
-            {orders.map((order, idx) => (
-              <div
-                key={order.id}
-                style={{
-                  padding: '14px 20px',
-                  cursor: 'pointer',
-                  borderBottom: idx < orders.length - 1 ? '1px solid var(--glass-border)' : 'none',
-                  transition: 'background 0.15s ease',
-                }}
-                onClick={() => setSelectedOrder(order)}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)',
-                      marginBottom: '6px', lineHeight: 1.4,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {order.heading || 'Unknown parties'}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                      {order.court_ref_no && (
-                        <span style={{ fontFamily: "'SF Mono', monospace", fontSize: '11px', color: 'var(--accent-amber)' }}>
-                          {order.court_ref_no}
-                        </span>
-                      )}
-                      {order.prtb_no && (
-                        <span style={{ fontFamily: "'SF Mono', monospace", fontSize: '11px', color: 'var(--accent-blue)' }}>
-                          {order.prtb_no}
-                        </span>
-                      )}
-                      {order.order_date && (
-                        <span>
-                          {new Date(order.order_date).toLocaleDateString('en-IE', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
-                    {order.subject && <span className="badge badge-glass" style={{ fontSize: '11px' }}>{order.subject}</span>}
-                    {order.ai_outcome && <span className={`badge ${getOutcomeBadgeClass(order.ai_outcome)}`} style={{ fontSize: '11px' }}>{order.ai_outcome}</span>}
-                    {order.ai_compensation_amount > 0 && (
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent-green)' }}>
-                        €{parseFloat(order.ai_compensation_amount).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{
-              display: 'flex', justifyContent: 'center', alignItems: 'center',
-              gap: '12px', marginTop: 'var(--spacing-md)',
-            }}>
-              <button
-                className="btn"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                style={{ padding: '8px 16px', fontSize: '13px' }}
-              >
-                ← Prev
-              </button>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Page {page} of {totalPages}
-              </span>
-              <button
-                className="btn"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                style={{ padding: '8px 16px', fontSize: '13px' }}
-              >
-                Next →
-              </button>
+        ) : orders.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">⚖️</div>
+            <div className="empty-state-title">No enforcement orders found</div>
+            <div className="empty-state-text">
+              {search || subject ? 'Try adjusting your search filters' : 'Sync enforcement orders from the Admin panel to get started'}
             </div>
-          )}
-        </>
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className={sortBy === 'order_date' ? 'active' : ''} onClick={() => handleSort('order_date')}>
+                  Date <SortIcon field="order_date" />
+                </th>
+                <th className={sortBy === 'heading' ? 'active' : ''} onClick={() => handleSort('heading')}>
+                  Parties <SortIcon field="heading" />
+                </th>
+                <th className={sortBy === 'court_ref_no' ? 'active' : ''} onClick={() => handleSort('court_ref_no')}>
+                  Court Ref <SortIcon field="court_ref_no" />
+                </th>
+                <th className={sortBy === 'subject' ? 'active' : ''} onClick={() => handleSort('subject')}>
+                  Subject <SortIcon field="subject" />
+                </th>
+                <th className={sortBy === 'ai_compensation_amount' ? 'active' : ''} onClick={() => handleSort('ai_compensation_amount')}>
+                  Award <SortIcon field="ai_compensation_amount" />
+                </th>
+                <th>PDF</th>
+                <th className="col-ai">AI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id} onClick={() => setSelectedOrder(o)}>
+                  <td className="mono">
+                    {o.order_date ? new Date(o.order_date).toLocaleDateString('en-IE') : '—'}
+                  </td>
+                  <td>
+                    <div style={{ fontSize: '13px', fontWeight: 500, lineHeight: 1.4, maxWidth: '400px' }}>
+                      {o.applicant_name && (
+                        <div>
+                          <span className="badge badge-blue" style={{ marginRight: 6 }}>Applicant</span>
+                          {o.applicant_name}
+                        </div>
+                      )}
+                      {o.respondent_name && (
+                        <div style={{ marginTop: 4 }}>
+                          <span className="badge badge-amber" style={{ marginRight: 6 }}>Respondent</span>
+                          {o.respondent_name}
+                        </div>
+                      )}
+                      {!o.applicant_name && !o.respondent_name && (
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>{o.heading}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="mono">{o.court_ref_no || '—'}</td>
+                  <td className="muted">{o.subject || '—'}</td>
+                  <td>
+                    {o.ai_compensation_amount > 0 ? (
+                      <span style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '13px' }}>
+                        €{parseFloat(o.ai_compensation_amount).toLocaleString()}
+                      </span>
+                    ) : o.ai_processed_at && o.ai_compensation_amount === 0 ? (
+                      <span className="muted" style={{ fontSize: '11px' }}>€0</span>
+                    ) : o.ai_processed_at && o.ai_compensation_amount === null ? (
+                      <span className="badge badge-amber" style={{ fontSize: '9px' }}>Refer to Order</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-tertiary)', fontSize: '11px' }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    {o.pdf_url && (
+                      <span className="badge badge-glass">📄</span>
+                    )}
+                  </td>
+                  <td className="col-ai">
+                    {o.ai_processed_at ? (
+                      <span className="badge badge-purple">✨</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-tertiary)', fontSize: '11px' }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button className="pagination-btn" onClick={() => setPage(1)} disabled={page === 1}>«</button>
+          <button className="pagination-btn" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>‹</button>
+          <span className="pagination-info">Page {page} of {totalPages}</span>
+          <button className="pagination-btn" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</button>
+          <button className="pagination-btn" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</button>
+        </div>
       )}
 
       {/* Enforcement Order Detail Modal */}
