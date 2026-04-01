@@ -34,3 +34,19 @@ services:
           property: url
       - key: CRON_SECRET
         sync: false
+
+  - type: cron
+    name: rtb-rent-register-sync
+    runtime: node
+    schedule: "0 3 * * 0"
+    buildCommand: npm install
+    startCommand: 'node -e "fetch(process.env.RENDER_EXTERNAL_URL + '\''/api/scrape/rent-register'\'', { method: '\''POST'\'', headers: { Authorization: '\''Bearer '\'' + process.env.CRON_SECRET } }).then(r => r.json()).then(console.log).catch(console.error)"'
+    plan: free
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          name: rtb-disputes
+          type: web
+          property: url
+      - key: CRON_SECRET
+        sync: false
