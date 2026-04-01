@@ -10,17 +10,15 @@
  * This scrapes:
  *   - 4 Dublin local authorities (Dublin City, DLR, Fingal, South Dublin)
  *   - All LEAs within each authority
- *   - Dwelling types: House (100) and Apartment/Flat (101)
- *   - Bedroom counts: 1–5 (stops early if 0 results returned)
- *   - No BER/floor space filter (captures all 10 results per combination)
+ *   - 30 property profiles per LEA (BER × floor space × bedroom × type matrix)
  *
- * Rate limited to 3 seconds between requests (respectful of RTB servers).
- * Full Dublin scrape takes approximately 10–15 minutes.
+ * Rate limited to 3 seconds between requests.
+ * Full Dublin scrape: 31 LEAs × 30 profiles = 930 queries (~47 minutes).
  */
 
 import { createServiceClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin-auth';
-import { scrapeRentRegisterDublin } from '@/lib/rent-register-scraper';
+import { scrapeRentRegisterDublin, QUERY_MATRIX } from '@/lib/rent-register-scraper';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -85,8 +83,8 @@ export async function POST() {
         return Response.json({
             message: 'Rent register scrape started',
             lea_count: leaRefs.length,
-            estimated_queries: leaRefs.length * 2 * 4, // LEAs × dwelling types × avg bedrooms
-            estimated_duration_minutes: Math.ceil((leaRefs.length * 2 * 4 * 3) / 60),
+            estimated_queries: leaRefs.length * QUERY_MATRIX.length,
+            estimated_duration_minutes: Math.ceil(leaRefs.length * QUERY_MATRIX.length * 3 / 60),
         });
     } catch (err) {
         return Response.json({ error: err.message }, { status: 500 });
@@ -98,24 +96,18 @@ async function runRentRegisterScrape(supabase, leaRefs) {
     let totalUpserted = 0;
     let totalSkipped = 0;
 
-    for await (const batch of scrapeRentRegisterDublin({ leaRefs, maxBedrooms: 5 })) {
-        const { results, lea, dwellingType, bedrooms, batchId } = batch;
+    for await (const batch of scrapeRentRegisterDublin({ leaRefs })) {
+        const { results, lea, profile, batchId } = batch;
+        const logKey = { osi_lea_id: lea.osi_lea_id, dwelling_type_code: profile.dwellingTypeCode, number_of_bedrooms: profile.bedrooms, ber: profile.ber, floor_space_sqm: profile.floorSpace };
 
         if (results.length === 0) {
-            // Log zero result combinations so we know coverage
-            await supabase.from('rent_register_scrape_log').upsert({
-                local_authority_id: lea.local_authority_id,
-                osi_lea_id: lea.osi_lea_id,
-                dwelling_type_code: dwellingType.code,
-                number_of_bedrooms: bedrooms,
-                records_returned: 0,
-                scraped_at: new Date().toISOString(),
-                batch_id: batchId,
-            }, { onConflict: 'local_authority_id,osi_lea_id,dwelling_type_code,number_of_bedrooms' });
+            await supabase.from('rent_register_scrape_log').upsert(
+                { local_authority_id: lea.local_authority_id, ...logKey, records_returned: 0, scraped_at: new Date().toISOString(), batch_id: batchId },
+                { onConflict: 'osi_lea_id,dwelling_type_code,number_of_bedrooms,ber,floor_space_sqm' }
+            );
             continue;
         }
 
-        // Map API response fields to DB columns
         const rows = results.map(r => ({
             rt_number:            r.rtNumber,
             local_authority:      r.localAuthority,
@@ -124,7 +116,7 @@ async function runRentRegisterScrape(supabase, leaRefs) {
             osi_lea_id:           lea.osi_lea_id,
             electoral_district:   r.eD_Name || null,
             dwelling_type:        r.combinedDwellingType,
-            dwelling_type_code:   dwellingType.code,
+            dwelling_type_code:   profile.dwellingTypeCode,
             number_of_bedrooms:   r.numberOfBedrooms,
             number_of_bed_spaces: r.numberOfBedSpaces || null,
             floor_space_sqm:      r.floorSpace || null,
@@ -135,13 +127,9 @@ async function runRentRegisterScrape(supabase, leaRefs) {
             scrape_batch_id:      batchId,
         }));
 
-        // Upsert — conflict on rt_number, update rent and scrape timestamp
         const { error: upsertError } = await supabase
             .from('rent_register')
-            .upsert(rows, {
-                onConflict: 'rt_number',
-                ignoreDuplicates: false, // Update existing records with fresh rent data
-            });
+            .upsert(rows, { onConflict: 'rt_number', ignoreDuplicates: false });
 
         if (upsertError) {
             console.error(`[RentRegister] Upsert error for LEA ${lea.lea_name}:`, upsertError.message);
@@ -150,18 +138,10 @@ async function runRentRegisterScrape(supabase, leaRefs) {
             totalUpserted += rows.length;
         }
 
-        // Log scrape coverage
-        await supabase.from('rent_register_scrape_log').upsert({
-            local_authority_id: lea.local_authority_id,
-            osi_lea_id: lea.osi_lea_id,
-            dwelling_type_code: dwellingType.code,
-            number_of_bedrooms: bedrooms,
-            records_returned: results.length,
-            scraped_at: new Date().toISOString(),
-            batch_id: batchId,
-        }, { onConflict: 'local_authority_id,osi_lea_id,dwelling_type_code,number_of_bedrooms' });
-
-        console.log(`[RentRegister] ${lea.lea_name} | ${dwellingType.name} | ${bedrooms}bed → ${results.length} records`);
+        await supabase.from('rent_register_scrape_log').upsert(
+            { local_authority_id: lea.local_authority_id, ...logKey, records_returned: results.length, scraped_at: new Date().toISOString(), batch_id: batchId },
+            { onConflict: 'osi_lea_id,dwelling_type_code,number_of_bedrooms,ber,floor_space_sqm' }
+        );
     }
 
     console.log(`[RentRegister] Scrape complete. Upserted: ${totalUpserted}, Skipped: ${totalSkipped}`);

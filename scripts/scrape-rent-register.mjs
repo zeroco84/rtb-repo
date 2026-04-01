@@ -15,7 +15,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { scrapeRentRegisterDublin } from '../lib/rent-register-scraper.js';
+import { scrapeRentRegisterDublin, QUERY_MATRIX } from '../lib/rent-register-scraper.js';
 
 // Load .env.local for local development — optional, not needed on Render
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -56,19 +56,19 @@ async function main() {
         process.exit(1);
     }
 
-    console.log(`Scraping ${leaRefs.length} LEAs × 2 dwelling types × up to 5 bedrooms`);
-    console.log(`Estimated queries: ~${leaRefs.length * 2 * 3} | Estimated time: ~${Math.ceil(leaRefs.length * 2 * 3 * 3 / 60)} mins\n`);
+    console.log(`Scraping ${leaRefs.length} LEAs × ${QUERY_MATRIX.length} profiles = ${leaRefs.length * QUERY_MATRIX.length} queries`);
+    console.log(`Estimated time: ~${Math.ceil(leaRefs.length * QUERY_MATRIX.length * 3 / 60)} mins\n`);
 
     let totalUpserted = 0;
     let totalSkipped = 0;
     let totalQueries = 0;
 
-    for await (const batch of scrapeRentRegisterDublin({ leaRefs, maxBedrooms: 5,
-        onProgress: ({ currentLea, bedrooms, totalResults }) => {
-            process.stdout.write(`\r[${totalQueries}] ${currentLea} | ${bedrooms}bed | ${totalResults} total`);
+    for await (const batch of scrapeRentRegisterDublin({ leaRefs,
+        onProgress: ({ currentLea, profile, totalResults }) => {
+            process.stdout.write(`\r[${totalQueries}] ${currentLea} | ${profile.dwellingTypeCode === 101 ? 'Apt' : 'House'} ${profile.bedrooms}bed ${profile.ber} ${profile.floorSpace}m² | ${totalResults} total`);
         }
     })) {
-        const { results, lea, dwellingType, bedrooms, batchId } = batch;
+        const { results, lea, profile, batchId } = batch;
         totalQueries++;
 
         if (results.length === 0) {
@@ -76,20 +76,22 @@ async function main() {
                 await supabase.from('rent_register_scrape_log').upsert({
                     local_authority_id: lea.local_authority_id,
                     osi_lea_id: lea.osi_lea_id,
-                    dwelling_type_code: dwellingType.code,
-                    number_of_bedrooms: bedrooms,
+                    dwelling_type_code: profile.dwellingTypeCode,
+                    number_of_bedrooms: profile.bedrooms,
+                    ber: profile.ber,
+                    floor_space_sqm: profile.floorSpace,
                     records_returned: 0,
                     scraped_at: new Date().toISOString(),
                     batch_id: batchId,
-                }, { onConflict: 'local_authority_id,osi_lea_id,dwelling_type_code,number_of_bedrooms' });
+                }, { onConflict: 'osi_lea_id,dwelling_type_code,number_of_bedrooms,ber,floor_space_sqm' });
             }
             continue;
         }
 
         if (isDryRun) {
-            console.log(`\n[DRY] ${lea.lea_name} | ${dwellingType.name} | ${bedrooms}bed → ${results.length} results`);
+            console.log(`\n[DRY] ${lea.lea_name} | ${profile.dwellingTypeCode === 101 ? 'Apt' : 'House'} ${profile.bedrooms}bed ${profile.ber} ${profile.floorSpace}m² → ${results.length} results`);
             results.slice(0, 2).forEach(r =>
-                console.log(`  RT: ${r.rtNumber} | BER: ${r.ber} | ${r.floorSpace}m² | €${r.rentMonthCalc}/mo`)
+                console.log(`  RT: ${r.rtNumber} | BER: ${r.ber} | ${r.floorSpace}m² | €${r.rentMonthCalc}/mo | score: ${r.score}`)
             );
             continue;
         }
@@ -102,7 +104,7 @@ async function main() {
             osi_lea_id:           lea.osi_lea_id,
             electoral_district:   r.eD_Name || null,
             dwelling_type:        r.combinedDwellingType,
-            dwelling_type_code:   dwellingType.code,
+            dwelling_type_code:   profile.dwellingTypeCode,
             number_of_bedrooms:   r.numberOfBedrooms,
             number_of_bed_spaces: r.numberOfBedSpaces || null,
             floor_space_sqm:      r.floorSpace || null,
@@ -127,12 +129,14 @@ async function main() {
         await supabase.from('rent_register_scrape_log').upsert({
             local_authority_id: lea.local_authority_id,
             osi_lea_id: lea.osi_lea_id,
-            dwelling_type_code: dwellingType.code,
-            number_of_bedrooms: bedrooms,
+            dwelling_type_code: profile.dwellingTypeCode,
+            number_of_bedrooms: profile.bedrooms,
+            ber: profile.ber,
+            floor_space_sqm: profile.floorSpace,
             records_returned: results.length,
             scraped_at: new Date().toISOString(),
             batch_id: batchId,
-        }, { onConflict: 'local_authority_id,osi_lea_id,dwelling_type_code,number_of_bedrooms' });
+        }, { onConflict: 'osi_lea_id,dwelling_type_code,number_of_bedrooms,ber,floor_space_sqm' });
     }
 
     console.log(`\n\n=== Complete ===`);

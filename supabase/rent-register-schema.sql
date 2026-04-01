@@ -37,10 +37,13 @@ CREATE TABLE IF NOT EXISTS rent_register_scrape_log (
   osi_lea_id BIGINT NOT NULL,
   dwelling_type_code INTEGER NOT NULL,
   number_of_bedrooms INTEGER NOT NULL,
+  ber TEXT NOT NULL,
+  floor_space_sqm INTEGER NOT NULL,
   records_returned INTEGER NOT NULL DEFAULT 0,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   batch_id UUID NOT NULL,
-  CONSTRAINT scrape_log_unique UNIQUE (local_authority_id, osi_lea_id, dwelling_type_code, number_of_bedrooms)
+  -- Unique per query profile (LEA + type + bedrooms + BER + floor space)
+  CONSTRAINT scrape_log_unique UNIQUE (osi_lea_id, dwelling_type_code, number_of_bedrooms, ber, floor_space_sqm)
 );
 
 -- ============================================
