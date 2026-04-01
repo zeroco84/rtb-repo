@@ -146,7 +146,7 @@ export default function Home() {
             <div className="nav-brand-icon">⚖️</div>
             <div>
               <div className="nav-brand-text">Act Fairly</div>
-              <div className="nav-brand-sub">RTB Dispute Database</div>
+              <div className="nav-brand-sub">Ireland Property Intelligence</div>
             </div>
           </div>
 
@@ -179,6 +179,13 @@ export default function Home() {
               <span className="nav-tab-icon">⚖️</span>
               Enforcement
             </button>
+            <button
+              className={`nav-tab ${activeTab === 'rent_register' ? 'active' : ''}`}
+              onClick={() => setActiveTab('rent_register')}
+            >
+              <span className="nav-tab-icon">🏠</span>
+              Rent Register
+            </button>
             {isAdmin && (
               <button
                 className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`}
@@ -206,6 +213,9 @@ export default function Home() {
         )}
         {activeTab === 'enforcement' && (
           <EnforcementOrdersView showToast={showToast} />
+        )}
+        {activeTab === 'rent_register' && (
+          <RentRegisterView showToast={showToast} />
         )}
         {activeTab === 'admin' && (
           <AdminGate
@@ -338,7 +348,7 @@ function DashboardView({ stats, onRefresh, onPartyClick }) {
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
         <p className="page-subtitle">
-          Overview of the RTB dispute database
+          Overview of Ireland property intelligence platform
         </p>
         <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '8px', lineHeight: 1.6, maxWidth: '720px' }}>
           Data are processed by artificial intelligence models and subject to frequent change. Where uncertainty exists about monetary amounts they are set at zero. Always refer to the accompanying PDF document to confirm individual case figures.
@@ -3935,5 +3945,344 @@ function UserMenu({ user, onSignOut, showToast }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ============================================
+// RENT REGISTER VIEW
+// Queries Supabase directly (same pattern as all other views)
+// Displays comparable rent data from RTB Rent Register
+// ============================================
+function RentRegisterView({ showToast }) {
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  // LEA reference data
+  const [counties, setCounties] = useState([]);
+  const [leas, setLeas] = useState([]);
+  const [filteredLeas, setFilteredLeas] = useState([]);
+
+  // Search form state
+  const [selectedCounty, setSelectedCounty] = useState('');
+  const [selectedLeaId, setSelectedLeaId] = useState('');
+  const [dwellingType, setDwellingType] = useState(101); // 101=Apartment, 100=House
+  const [bedrooms, setBedrooms] = useState(2);
+  const [berFilter, setBerFilter] = useState('');
+  const [floorSpace, setFloorSpace] = useState('');
+
+  // Results state
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [copiedRt, setCopiedRt] = useState(null);
+
+  // Load all LEA refs on mount
+  useEffect(() => {
+    async function loadLeas() {
+      const { data, error } = await sb
+        .from('rent_register_lea_ref')
+        .select('local_authority_id, local_authority_name, osi_lea_id, lea_name, is_dublin')
+        .order('local_authority_name')
+        .order('lea_name');
+      if (error) { showToast('Failed to load LEA data', 'error'); return; }
+      setLeas(data || []);
+      // Derive unique counties
+      const seen = new Set();
+      const uniqueCounties = [];
+      for (const r of (data || [])) {
+        if (!seen.has(r.local_authority_id)) {
+          seen.add(r.local_authority_id);
+          uniqueCounties.push({ id: r.local_authority_id, name: r.local_authority_name });
+        }
+      }
+      setCounties(uniqueCounties);
+    }
+    loadLeas();
+  }, []);
+
+  // Filter LEAs when county changes
+  useEffect(() => {
+    if (!selectedCounty) { setFilteredLeas([]); setSelectedLeaId(''); return; }
+    const filtered = leas.filter(l => l.local_authority_id === parseInt(selectedCounty));
+    setFilteredLeas(filtered);
+    setSelectedLeaId(filtered[0]?.osi_lea_id?.toString() || '');
+  }, [selectedCounty, leas]);
+
+  const handleSearch = async () => {
+    if (!selectedLeaId) { showToast('Please select a Local Electoral Area', 'error'); return; }
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      let query = sb
+        .from('rent_register')
+        .select('rt_number, local_electoral_area, electoral_district, dwelling_type, number_of_bedrooms, floor_space_sqm, ber, rent_monthly, match_score, scraped_at')
+        .eq('osi_lea_id', parseInt(selectedLeaId))
+        .eq('dwelling_type_code', dwellingType)
+        .eq('number_of_bedrooms', bedrooms)
+        .order('scraped_at', { ascending: false })
+        .limit(50);
+
+      if (berFilter) query = query.eq('ber', berFilter);
+      if (floorSpace && !isNaN(parseFloat(floorSpace))) {
+        const fs = parseFloat(floorSpace);
+        query = query.gte('floor_space_sqm', fs * 0.8).lte('floor_space_sqm', fs * 1.2);
+      }
+
+      const { data, error } = await query;
+      if (error) { showToast('Search failed: ' + error.message, 'error'); return; }
+      setResults(data || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyRtNumber = (rt) => {
+    navigator.clipboard.writeText(rt).then(() => {
+      setCopiedRt(rt);
+      setTimeout(() => setCopiedRt(null), 2000);
+    });
+  };
+
+  // Summary stats
+  const rents = results.map(r => r.rent_monthly).filter(Boolean).map(Number);
+  const minRent = rents.length ? Math.min(...rents) : null;
+  const maxRent = rents.length ? Math.max(...rents) : null;
+  const medianRent = rents.length
+    ? [...rents].sort((a, b) => a - b)[Math.floor(rents.length / 2)]
+    : null;
+
+  const BER_RATINGS = ['A1','A2','A3','B1','B2','B3','C1','C2','C3','D1','D2','E1','E2','F','G','Exempt'];
+
+  return (
+    <>
+      <div className="page-header">
+        <h1 className="page-title">Rent Register</h1>
+        <p className="page-subtitle">
+          Search registered rents from the RTB Rent Register — {results.length > 0 ? `${results.length} comparables found` : 'select filters and search'}
+        </p>
+        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '8px', lineHeight: 1.6, maxWidth: '720px' }}>
+          Data sourced from the RTB Rent Register via rtb.ie. The RT number is required for Part C of the Notice of Rent Review form.
+          Click any RT number to copy it to your clipboard.
+        </p>
+      </div>
+
+      {/* Search Form */}
+      <div className="glass-card-static" style={{ padding: 'var(--spacing-lg)', marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          {/* County */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '6px' }}>County / Local Authority</div>
+            <select
+              className="filter-select"
+              style={{ width: '100%', padding: '10px 14px' }}
+              value={selectedCounty}
+              onChange={e => setSelectedCounty(e.target.value)}
+            >
+              <option value="">Select county...</option>
+              {counties.map(c => (
+                <option key={c.id} value={c.id}>{c.name.replace(' COUNTY COUNCIL', '').replace(' CITY COUNTY COUNCIL', ' CITY').replace(' CITY AND COUNTY COUNCIL', ' CITY & COUNTY')}</option>
+              ))}
+            </select>
+          </div>
+          {/* LEA */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '6px' }}>Local Electoral Area</div>
+            <select
+              className="filter-select"
+              style={{ width: '100%', padding: '10px 14px' }}
+              value={selectedLeaId}
+              onChange={e => setSelectedLeaId(e.target.value)}
+              disabled={!selectedCounty}
+            >
+              <option value="">Select LEA...</option>
+              {filteredLeas.map(l => (
+                <option key={l.osi_lea_id} value={l.osi_lea_id}>{l.lea_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {/* Dwelling type */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '6px' }}>Type</div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[{ code: 101, label: 'Apartment' }, { code: 100, label: 'House' }].map(t => (
+                <button key={t.code} className={`filter-chip ${dwellingType === t.code ? 'active' : ''}`}
+                  onClick={() => setDwellingType(t.code)}>{t.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bedrooms */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '6px' }}>Bedrooms</div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button key={n} className={`filter-chip ${bedrooms === n ? 'active' : ''}`}
+                  onClick={() => setBedrooms(n)}>{n}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* BER */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '6px' }}>BER (optional)</div>
+            <select className="filter-select" value={berFilter} onChange={e => setBerFilter(e.target.value)}>
+              <option value="">All ratings</option>
+              {BER_RATINGS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+
+          {/* Floor space */}
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '6px' }}>Floor Space m² (±20%)</div>
+            <input
+              type="number"
+              placeholder="e.g. 75"
+              value={floorSpace}
+              onChange={e => setFloorSpace(e.target.value)}
+              style={{
+                padding: '6px 14px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+                borderRadius: 'var(--radius-pill)', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-family)', outline: 'none', width: '100px',
+              }}
+            />
+          </div>
+
+          {/* Search button */}
+          <button className="btn btn-primary" onClick={handleSearch} disabled={loading || !selectedLeaId}
+            style={{ marginTop: '2px' }}>
+            {loading ? '⏳ Searching...' : '🔍 Search'}
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Stats Bar */}
+      {hasSearched && !loading && results.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: 'var(--spacing-lg)' }}>
+          <div className="glass-card stat-card" style={{ padding: '16px' }}>
+            <div className="stat-label">Records Found</div>
+            <div className="stat-value blue" style={{ fontSize: '24px' }}>{results.length}</div>
+            <div className="stat-change">Unique RT numbers</div>
+          </div>
+          <div className="glass-card stat-card" style={{ padding: '16px' }}>
+            <div className="stat-label">Min Rent</div>
+            <div className="stat-value green" style={{ fontSize: '24px' }}>€{minRent?.toLocaleString()}</div>
+            <div className="stat-change">per month</div>
+          </div>
+          <div className="glass-card stat-card" style={{ padding: '16px' }}>
+            <div className="stat-label">Median Rent</div>
+            <div className="stat-value amber" style={{ fontSize: '24px' }}>€{medianRent?.toLocaleString()}</div>
+            <div className="stat-change">per month</div>
+          </div>
+          <div className="glass-card stat-card" style={{ padding: '16px' }}>
+            <div className="stat-label">Max Rent</div>
+            <div className="stat-value" style={{ fontSize: '24px', color: 'var(--accent-red)' }}>€{maxRent?.toLocaleString()}</div>
+            <div className="stat-change">per month</div>
+          </div>
+        </div>
+      )}
+
+      {/* Results Table */}
+      {hasSearched && (
+        <div className="glass-card-static table-container">
+          {loading ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <div className="loading-text">Searching rent register...</div>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">🏠</div>
+              <div className="empty-state-title">No results found</div>
+              <div className="empty-state-text">
+                Try a different BER rating, remove the floor space filter, or select a different LEA.
+                Data for this area may not have been scraped yet.
+              </div>
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>RT Number</th>
+                  <th>Electoral District</th>
+                  <th>BER</th>
+                  <th>Floor m²</th>
+                  <th>Rent / Month</th>
+                  <th>Match Score</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map(r => (
+                  <tr key={r.rt_number}>
+                    <td>
+                      <button
+                        onClick={() => copyRtNumber(r.rt_number)}
+                        style={{
+                          fontFamily: "'SF Mono', 'Fira Code', monospace",
+                          fontSize: '12px',
+                          color: copiedRt === r.rt_number ? 'var(--accent-green)' : 'var(--accent-blue)',
+                          background: copiedRt === r.rt_number ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.08)',
+                          border: copiedRt === r.rt_number ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(59,130,246,0.15)',
+                          borderRadius: '6px',
+                          padding: '4px 10px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title="Click to copy RT number"
+                      >
+                        {copiedRt === r.rt_number ? '✓ Copied' : r.rt_number}
+                      </button>
+                    </td>
+                    <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{r.electoral_district || r.local_electoral_area || '—'}</td>
+                    <td>
+                      {r.ber ? (
+                        <span className={`badge ${
+                          r.ber.startsWith('A') ? 'badge-green' :
+                          r.ber.startsWith('B') ? 'badge-blue' :
+                          r.ber.startsWith('C') ? 'badge-amber' : 'badge-red'
+                        }`}>{r.ber}</span>
+                      ) : '—'}
+                    </td>
+                    <td className="mono">{r.floor_space_sqm ? `${r.floor_space_sqm}m²` : '—'}</td>
+                    <td>
+                      <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>
+                        €{Number(r.rent_monthly).toLocaleString()}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{
+                          width: '40px', height: '4px', borderRadius: '2px',
+                          background: 'rgba(255,255,255,0.1)', overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            width: `${Math.min(100, (r.match_score || 0))}%`,
+                            height: '100%',
+                            background: r.match_score >= 80 ? 'var(--accent-green)' : r.match_score >= 60 ? 'var(--accent-amber)' : 'var(--accent-red)',
+                            borderRadius: '2px',
+                          }} />
+                        </div>
+                        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                          {r.match_score ? r.match_score.toFixed(0) : '—'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="mono" style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                      {r.scraped_at ? new Date(r.scraped_at).toLocaleDateString('en-IE') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </>
   );
 }

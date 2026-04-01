@@ -1,9 +1,9 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Act Fairly | A Complete Database of RTB Disputes in Ireland",
-  description: "A complete, searchable database of every dispute filed with the Residential Tenancies Board (RTB) in Ireland. Search by name, address, dispute type. Identify repeat offenders with our league table.",
-  keywords: "RTB, disputes, Ireland, landlord, tenant, residential tenancies board, adjudication, tribunal, Act Fairly",
+  title: "Act Fairly | Ireland Property Intelligence",
+  description: "Ireland's most comprehensive property data platform. Search RTB disputes, enforcement orders, and rent register comparables nationwide.",
+  keywords: "RTB, disputes, Ireland, landlord, tenant, residential tenancies board, rent register, comparables, Act Fairly",
 };
 
 export default function RootLayout({ children }) {
