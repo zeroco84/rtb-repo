@@ -13,12 +13,15 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+// Load .env.local for local development — optional, not needed on Render
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: join(__dirname, '..', '.env.local') });
+try {
+  const { default: dotenv } = await import('dotenv');
+  dotenv.config({ path: join(__dirname, '..', '.env.local') });
+} catch { /* dotenv not installed — fine on Render where env vars are injected */ }
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
