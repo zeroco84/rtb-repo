@@ -1,13 +1,13 @@
 /**
  * scripts/scrape-rent-register.mjs
  *
- * Runs a full Dublin rent register scrape and upserts results into Supabase.
+ * Runs a full national rent register scrape and upserts results into Supabase.
  * Can be run manually or triggered via the admin panel POST /api/scrape/rent-register.
  *
  * Usage:
- *   node scripts/scrape-rent-register.mjs
- *   node scripts/scrape-rent-register.mjs --dry-run   (prints queries without saving)
- *   node scripts/scrape-rent-register.mjs --la 29     (single local authority only)
+ *   node scripts/scrape-rent-register.mjs              (all 166 national LEAs, ~83 mins)
+ *   node scripts/scrape-rent-register.mjs --dry-run    (prints queries without saving)
+ *   node scripts/scrape-rent-register.mjs --la 29      (single local authority only)
  *
  * Requires: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local
  */
@@ -38,11 +38,10 @@ async function main() {
     if (isDryRun) console.log('DRY RUN — no data will be saved\n');
     if (laFilter) console.log(`Filtering to Local Authority ID: ${laFilter}\n`);
 
-    // Load Dublin LEA refs
+    // Load LEA refs — all national by default, or filtered by --la flag
     let leaQuery = supabase
         .from('rent_register_lea_ref')
         .select('*')
-        .eq('is_dublin', true)
         .order('local_authority_id')
         .order('lea_name');
 

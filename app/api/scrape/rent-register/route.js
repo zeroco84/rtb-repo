@@ -38,15 +38,14 @@ export async function GET() {
             .limit(1)
             .single();
 
-        const { data: leaCount } = await supabase
+        const { count: leaCount } = await supabase
             .from('rent_register_lea_ref')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_dublin', true);
+            .select('*', { count: 'exact', head: true });
 
         return Response.json({
             total_records: recordCount || 0,
             last_scraped_at: latestScrape?.scraped_at || null,
-            dublin_leas_configured: leaCount || 0,
+            leas_configured: leaCount || 0,
         });
     } catch (err) {
         return Response.json({ error: err.message }, { status: 500 });
@@ -64,7 +63,6 @@ export async function POST() {
         const { data: leaRefs, error: leaError } = await supabase
             .from('rent_register_lea_ref')
             .select('*')
-            .eq('is_dublin', true)
             .order('local_authority_id')
             .order('lea_name');
 
